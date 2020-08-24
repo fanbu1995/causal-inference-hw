@@ -1,0 +1,209 @@
+---
+title: "STA640 Homework 1"
+author: "Fan Bu"
+date: "8/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Part I: Fisher's mode
+### 1. 
+#### (a)
+Null hypothesis: $H_0: Y_i(0) = Y_i(1)$ for all $i=1,2,\ldots,12$.
+
+The observed test statistic is 
+$$
+T^{obs} = \frac{1}{6}\sum_{i=1:12} Z_i Y_i -  \frac{1}{6}\sum_{i=1:12} (1-Z_i) Y_i
+= 2.0183.
+$$
+
+Permutate through all ${12 \choose 6} = 924$ possible treatment assignment combinations and compare $T^{obs}$ against the distribution of all $T$s.
+
+```{r, Fisher exact}
+Y = c(8.62, 1.48, 8.93, 9.57, 2.65,7.30, 0.06, 1.72,
+      2.19, 7.32, 7.53,7.62)
+t = mean(Y[1:6]) - mean(Y[7:12])
+Combos = combn(12,6)
+Ts = numeric(ncol(Combos))
+for (i in 1:ncol(Combos)){
+  inds = Combos[,i]
+  Ts[i] = mean(Y[inds]) - mean(Y[-inds])
+}
+Ts = sort(Ts)
+q = which(Ts==t)/ncol(Combos)
+cat(ifelse(q<0.5, 2*q, 2*(1-q)))
+```
+
+So the two-tailed exact p-value is $\approx 0.268$. 
+
+#### (b)
+Draw 1000 times from the distribution of the $T$ statistic (obtained above) and compare them with $T^{obs}$.
+
+```{r, 1000 draws}
+set.seed(42)
+draws = sample(Ts, 1000, replace=T)
+draws = sort(draws)
+q = max(which(draws<=t))/ncol(Combos)
+cat(ifelse(q<0.5, 2*q, 2*(1-q)))
+```
+The approximate p-value varies across repetitions; for this particular draw, the approximate p-value is $0.108$. 
+
+#### (c)
+Perform a t-test to test whether the two groups of outcomes have the same mean.
+```{r, t-test}
+t.test(Y[1:6],Y[7:12], alternative = "two.sided")$p.value
+```
+The p-value is $\approx 0.3369$.
+
+#### (d)
+**(b)** is an approximation to **(a)** in that it doesn't use the **exact** distribution of the test statistic under randomized treatment assignment, but instead only approximates it using a bunch of random draws from the distribution. 
+
+**(c)** is an approximation to **(a)** in that it doesn't explictly consider the assignment mechanism, but only compares the outcomes of the two groups. Also, it doens't consider potential outcomes for each individual either. 
+
+### 2.
+#### 1(a)
+For the paired design, there are $2^6$ combinations. Go through each of those, calcuate the test statistic and compare them with $T^{obs}$.
+```{r, paired permute}
+total = 2^6
+Ts = NULL
+for(p in 1:6){
+  switch = combn(6,p)
+  for (j in 1:ncol(switch)){
+    switchPair = switch[,j]
+    new1 = c(c(1:6)[-switchPair],switchPair+6)
+    new0 = c(c(7:12)[-switchPair], switchPair)
+    this.T = mean(Y[new0]) - mean(Y[new1])
+    Ts = c(Ts, this.T)
+  }
+}
+Ts = c(Ts, t)
+Ts = sort(Ts)
+q = max(which(Ts<=t))/ncol(Combos)
+cat(ifelse(q<0.5, 2*q, 2*(1-q)))
+```
+The p-value is $\approx 0.1147$.
+
+#### 1(b)
+Similar to part (b) in question 1,
+draw 1000 times from the distribution of the $T$ statistic (obtained above) and compare them with $T^{obs}$.
+
+```{r, 1000 draws q2, echo=FALSE}
+set.seed(42)
+draws = sample(Ts, 1000, replace=T)
+draws = sort(draws)
+q = max(which(draws<=t))/ncol(Combos)
+cat(ifelse(q<0.5, 2*q, 2*(1-q)))
+```
+Again, the approximate p-value varies from experiment to experiment; for this particular draw, the approximate p-value is $0.2056$. 
+
+#### 1(c)
+Use a paired t-test. And the p-value is 
+```{r, t-test paired}
+t.test(Y[1:6],Y[7:12],alternative = "two.sided", paired=T)$p.value
+```
+The p-value is approximately $0.3652$.
+
+#### 1(d)
+Same as before, **(b)** is an approximation to **(a)** in that it doesn't use the **exact** distribution of the test statistic under (paired) randomized treatment assignment.
+
+**(c)** is an approximation to **(a)** in that the randomized assignment mechanism isn't explicitly addressed. However, by using a paired t-test, it does (to some extent) consider potential outcomes for each individual (the other person in the same pair can be thought of as the proxy that provides the unobserved potential outcome).
+
+
+### 3
+The test statistic is
+$$
+\begin{aligned}
+T &= \frac{1}{n_1}\sum_{i=1}^n Z_i Y_i - \frac{1}{n_0}\sum_{i=1}^n (1-Z_i) Y_i\\
+  &= \frac{1}{n_1}\sum_{i=1}^n Z_i Y_i(1) - \frac{1}{n_0}\sum_{i=1}^n (1-Z_i) Y_i(0).
+\end{aligned}
+$$
+Since under complete randomization, we have $Z_i$ independent of $Y_i(0), Y_i(1)$ for all $i$, then
+$$
+\begin{aligned}
+\mathbb{E}(T) &= \frac{1}{n_1}\sum_{i=1}^n \mathbb{E}Z_i \mathbb{E}(Y_i(1)) - \frac{1}{n_0}\sum_{i=1}^n \mathbb{E}(1-Z_i) \mathbb{E}(Y_i(0))\\
+&= \mathbb{E}(Y_i(1)) - \mathbb{E}(Y_i(0))\\
+&= \tau^{ATE}.
+\end{aligned}
+$$
+Thus, the test statistic is an unbiased estimator of ATE.
+
+For pairwise randomization, suppose that individual $i$ is paired with individual $i+n/2$ (assume that the first $n/2$ individuals are treated).
+Then the test statistic is
+$$
+\begin{aligned}
+T &= \frac{1}{n/2}\sum_{i=1}^{n/2} Z_i Y_i(1) - \frac{1}{n/2}\sum_{i=n/2+1}^n (1-Z_i) Y_i(0).
+\end{aligned}
+$$
+
+Then again, due to complete randomization, we have $Z_i$ independent of $Y_i(0), Y_i(1)$ for all $i$, and thus
+$$
+\begin{aligned}
+\mathbb{E}(T) &= \frac{1}{n/2}\sum_{i=1}^{n/2} \mathbb{E}Z_i \mathbb{E}(Y_i(1)) - \frac{1}{n/2}\sum_{i=n/2+1}^n \mathbb{E}(1-Z_i) \mathbb{E}(Y_i(0))\\
+&= \mathbb{E}(Y_i(1)) - \mathbb{E}(Y_i(0))\\
+&= \tau^{ATE}.
+\end{aligned}
+$$
+
+
+### 4
+Yes, I believe so. We can test if the two groups' outcomes differ by exactly $k$ on the sample means (using a t-test, for example).
+
+## Part II: Neyman's mode
+### 1.
+
+We have $N=12,N_0=N_1=2$. We need to enumerate all cases of size-$4$ samples, and within each sample, we also need to permute the assignment combinations (2 for each group). 
+
+Calculate the variance of the $495 \times 6$ values of $\bar{Y}_1^{obs} -\bar{Y}_1^{obs}$ first. 
+
+```{r, var of obs diff}
+Y = c(35,45,55,65,25,45,60,75,35,55,35,65,
+      40,55,55,70,30,55,65,80,40,50,40,70)
+POs = matrix(Y, ncol=2)
+
+Combos = combn(12,4)
+obs.diff = NULL
+for (i in 1:ncol(Combos)){
+  samp = Combos[,i]
+  assign = combn(1:4, 2)
+  for (j in 1:ncol(assign)){
+    treat = samp[assign[,j]]
+    control = samp[-assign[,j]]
+    this.diff = mean(POs[treat,1]) - mean(POs[control,2])
+    obs.diff = c(obs.diff, this.diff)
+  }
+}
+var(obs.diff)
+```
+
+Then calculate the right-hand side of the formula.
+```{r, RHS of var formula}
+sigma1 = var(POs[,1])
+sigma0 = var(POs[,2])
+sigma01 = var(POs[,1] - POs[,2])
+sigma0/2 + sigma1/2 - sigma01/12
+```
+
+Numerically those two numbers are basically equal. So we can say that the formula indeed holds. 
+
+
+### 2.
+Calculate the $495 \times 6$ values of $\frac{S_0^2}{N_0}+\frac{S_1^2}{N_1}$ and take the mean.
+```{r, check Neymean variance est}
+samp.var = NULL
+for (i in 1:ncol(Combos)){
+  samp = Combos[,i]
+  assign = combn(1:4, 2)
+  for (j in 1:ncol(assign)){
+    treat = samp[assign[,j]]
+    control = samp[-assign[,j]]
+    this.var = var(POs[treat,1])/2 + var(POs[control,2])/2
+    samp.var = c(samp.var, this.var)
+  }
+}
+mean(samp.var)
+```
+
+This number is indeed larger than the calculated result of $\frac{\sigma^2_0}{N_0} + \frac{\sigma^2_0}{N_0} - \frac{\sigma^2_{01}}{N}$ above. 
