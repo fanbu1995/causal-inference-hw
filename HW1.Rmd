@@ -1,7 +1,7 @@
 ---
 title: "STA640 Homework 1"
 author: "Fan Bu"
-date: "8/23/2020"
+date: "8/26/2020"
 output: html_document
 ---
 
@@ -59,9 +59,9 @@ t.test(Y[1:6],Y[7:12], alternative = "two.sided")$p.value
 The p-value is $\approx 0.3369$.
 
 #### (d)
-**(b)** is an approximation to **(a)** in that it doesn't use the **exact** distribution of the test statistic under randomized treatment assignment, but instead only approximates it using a bunch of random draws from the distribution. 
+**(b)** is an approximation to **(a)** in that it doesn't use the **exact** distribution of the test statistic under randomized treatment assignment, but instead only approximates it using a bunch of random draws (Monte Carlo simulations) from the distribution. 
 
-**(c)** is an approximation to **(a)** in that it doesn't explictly consider the assignment mechanism, but only compares the outcomes of the two groups. Also, it doens't consider potential outcomes for each individual either. 
+**(c)** is an approximation to **(a)** in that it doesn't explictly consider the assignment mechanism at all, but only compares the observed outcomes of the two groups and compares the means. Also, the t-test requires assumptions about the potential outcomes (i.e., approxiamtely Normal) where in **(a)** no distribution assumption is required.
 
 ### 2.
 #### 1(a)
@@ -109,7 +109,7 @@ The p-value is approximately $0.3652$.
 #### 1(d)
 Same as before, **(b)** is an approximation to **(a)** in that it doesn't use the **exact** distribution of the test statistic under (paired) randomized treatment assignment.
 
-**(c)** is an approximation to **(a)** in that the randomized assignment mechanism isn't explicitly addressed. However, by using a paired t-test, it does (to some extent) consider potential outcomes for each individual (the other person in the same pair can be thought of as the proxy that provides the unobserved potential outcome).
+**(c)** is an approximation to **(a)** in that the randomized assignment mechanism isn't explicitly addressed. However, by using a paired t-test, it does (to some extent) consider potential outcomes for each individual (the other person in the same pair can be thought of as the proxy that provides the unobserved potential outcome), although it still requires assumptions on the distribution which is not required in **(a)**.
 
 
 ### 3

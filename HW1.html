@@ -179,7 +179,7 @@ summary {
 
 <h1 class="title toc-ignore">STA640 Homework 1</h1>
 <h4 class="author">Fan Bu</h4>
-<h4 class="date">8/23/2020</h4>
+<h4 class="date">8/26/2020</h4>
 
 </div>
 
@@ -231,8 +231,8 @@ cat(ifelse(q&lt;0.5, 2*q, 2*(1-q)))</code></pre>
 </div>
 <div id="d" class="section level4">
 <h4>(d)</h4>
-<p><strong>(b)</strong> is an approximation to <strong>(a)</strong> in that it doesn’t use the <strong>exact</strong> distribution of the test statistic under randomized treatment assignment, but instead only approximates it using a bunch of random draws from the distribution.</p>
-<p><strong>(c)</strong> is an approximation to <strong>(a)</strong> in that it doesn’t explictly consider the assignment mechanism, but only compares the outcomes of the two groups. Also, it doens’t consider potential outcomes for each individual either.</p>
+<p><strong>(b)</strong> is an approximation to <strong>(a)</strong> in that it doesn’t use the <strong>exact</strong> distribution of the test statistic under randomized treatment assignment, but instead only approximates it using a bunch of random draws (Monte Carlo simulations) from the distribution.</p>
+<p><strong>(c)</strong> is an approximation to <strong>(a)</strong> in that it doesn’t explictly consider the assignment mechanism at all, but only compares the observed outcomes of the two groups and compares the means. Also, the t-test requires assumptions about the potential outcomes (i.e., approxiamtely Normal) where in <strong>(a)</strong> no distribution assumption is required.</p>
 </div>
 </div>
 <div id="section-1" class="section level3">
@@ -275,7 +275,7 @@ cat(ifelse(q&lt;0.5, 2*q, 2*(1-q)))</code></pre>
 <div id="d-1" class="section level4">
 <h4>1(d)</h4>
 <p>Same as before, <strong>(b)</strong> is an approximation to <strong>(a)</strong> in that it doesn’t use the <strong>exact</strong> distribution of the test statistic under (paired) randomized treatment assignment.</p>
-<p><strong>(c)</strong> is an approximation to <strong>(a)</strong> in that the randomized assignment mechanism isn’t explicitly addressed. However, by using a paired t-test, it does (to some extent) consider potential outcomes for each individual (the other person in the same pair can be thought of as the proxy that provides the unobserved potential outcome).</p>
+<p><strong>(c)</strong> is an approximation to <strong>(a)</strong> in that the randomized assignment mechanism isn’t explicitly addressed. However, by using a paired t-test, it does (to some extent) consider potential outcomes for each individual (the other person in the same pair can be thought of as the proxy that provides the unobserved potential outcome), although it still requires assumptions on the distribution which is not required in <strong>(a)</strong>.</p>
 </div>
 </div>
 <div id="section-2" class="section level3">
