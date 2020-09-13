@@ -9,22 +9,135 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+## Problem 1
+```{r, message=FALSE, warning=FALSE}
+library(tableone)
+library(survey)
+library(reshape2)
+library(ggplot2)
+library(tidyverse)
+data = read_delim('HW2_data.txt', delim=' ',
+                  col_types = 'fnffffffnnnf')
 ```
 
-## Including Plots
+### (a)
+Estimate propensity score with logistic regression using all covariates as main effects (note that I've tried adding higher-order terms, but it tends to hinder algorithm convergence and doesn't improve balance by much). Then obtain the inverse probability weights.
+```{r, message=FALSE}
+# centering the continuous variables helps...
+data[,c('i_age','com_t','pcs_sd','mcs_sd')] = scale(data[,c('i_age','com_t','pcs_sd','mcs_sd')],scale=FALSE)
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+ps.model = glm(pg ~ i_age + i_sex + i_race + i_educ + 
+                 i_insu + i_drug + i_seve + com_t + 
+                 pcs_sd + mcs_sd, 
+               data=data, family=binomial('logit'))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r, echo=FALSE}
+ps.model = readRDS('ps_model.rds')
+```
+
+```{r}
+ps = ps.model$fitted.values %>% as.numeric()
+
+data$ipw = 1
+data$ipw[data$pg == 2] = 1/ps[data$pg == 2]
+data$ipw[data$pg == 1] = 1/(1-ps[data$pg == 1])
+
+data$ow = 1
+data$ow[data$pg == 2] = 1 - ps[data$pg == 2]
+data$ow[data$pg == 1] = ps[data$pg == 1]
+```
+
+Examine covariate balance. Here we have achieved good balance (ASD < 0.1) for some of the covariates, but for the others, there is still imbalance.
+
+Note that there does exist a couple of subjects (subject 5 and 130) with extremely low ($<0.001$) or extremely high ($>0.999$) estimated propensity scores. And here I will exclude those extreme subjects. 
+```{r}
+## Weighted data
+dataIPW <- svydesign(ids = ~ 1, 
+                     data = data[ps > 0.001 & ps < 0.999,], 
+                     weights = ~ ipw)
+
+vars = names(data)[2:11]
+
+## Construct a table that checks balance
+tabWeighted <- svyCreateTableOne(vars = vars, strata = 'pg',
+                                 data = dataIPW, test = FALSE)
+## Show table with SMD
+print(tabWeighted, smd = TRUE)
+```
+
+
+### (b)
+
+Below is the histogram of estimated propensity scores by group.
+
+```{r, echo=FALSE}
+data$ps = ps
+
+ggplot(data, aes(x=ps, fill=pg)) +
+  geom_histogram(bins=30, position='dodge') +
+  labs(fill='physician\ngroup', x='propensity score')
+```
+
+And also the Love plot showing ASD before and after matching.
+
+```{r, echo=FALSE}
+# nothing
+tabUnmatched <- CreateTableOne(vars = vars, strata = "pg", data = data, test = FALSE)
+
+## Weighted data (OW)
+dataOW <- svydesign(ids = ~ 1, data = data, weights = ~ ow)
+
+## Construct a table that checks balance
+tabWeightedOW <- svyCreateTableOne(vars = vars, strata = 'pg',
+                                 data = dataOW, test = FALSE)
+
+```
+
+
+```{r, echo=FALSE}
+## Construct a data frame containing variable name and SMD from all methods
+dataPlot <- data.frame(variable  = rownames(ExtractSmd(tabUnmatched)),
+                       Unweighted = as.numeric(ExtractSmd(tabUnmatched)),
+                       IPW  = as.numeric(ExtractSmd(tabWeighted)),
+                       OW = as.numeric(ExtractSmd(tabWeightedOW)))
+
+## Create long-format data for ggplot2
+dataPlotMelt <- melt(data          = dataPlot,
+                     id.vars       = c("variable"),
+                     variable.name = "Method",
+                     value.name    = "SMD")
+
+## Order variable names by magnitude of SMD
+varNames <- as.character(dataPlot$variable)[order(dataPlot$Unweighted)]
+
+## Order factor levels in the same order
+dataPlotMelt$variable <- factor(dataPlotMelt$variable,
+                                levels = varNames)
+
+## Plot using ggplot2
+ggplot(data = dataPlotMelt,
+       mapping = aes(x = variable, y = SMD, group = Method, color = Method)) +
+    #geom_line() +
+    geom_hline(yintercept = 0.1, color = "black", size = 0.3) +
+    geom_point() +
+    coord_flip() +
+    theme_bw() + theme(legend.key = element_blank())
+```
+
+
+We can see that the original data (before weighting) do not have good balance on most of the covariates, in particular `race` and `comorbidity`, but there is some overlap between the two groups. After weighting, we achieve better balance in the covariates. 
+
+```{r}
+apply(data_orig[,c('i_age','com_t','pcs_sd','mcs_sd')], 2, mean)
+```
+
+
+### (c)
+
+|     |     |Unadjusted |       |    Adjusted |   |
+|-----|------|-------|-------|-------|----------|
+|     | **PG 1** | **PG 2** | **Overall** |  **IPW** |  **OW**  |
+| Age (yrs) |  40.45 | 39.65 |        | 
+
+
