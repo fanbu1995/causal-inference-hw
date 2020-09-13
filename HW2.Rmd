@@ -128,16 +128,78 @@ ggplot(data = dataPlotMelt,
 
 We can see that the original data (before weighting) do not have good balance on most of the covariates, in particular `race` and `comorbidity`, but there is some overlap between the two groups. After weighting, we achieve better balance in the covariates. 
 
-```{r}
-apply(data_orig[,c('i_age','com_t','pcs_sd','mcs_sd')], 2, mean)
+### (c)
+
+```{r get weighted average function, echo=FALSE}
+weight_avg <- function(x, w, varname=NULL){
+  if(is.numeric(x)){
+    # continuous variable
+    res = sum(w*x)/sum(w)
+    names(res) = varname
+    res
+  }else{
+    res = NULL
+    names = NULL
+    for(l in levels(x)){
+      freq.l = sum((x==l) * w)/sum(w)
+      res = c(res, freq.l)
+      names = c(names, paste0(varname,'=',l))
+    }
+    names(res) = names
+    res
+  }
+}
+
+get_var_wa <- function(dat, varname){
+  res = NULL
+  
+  x = dat[,varname,drop=TRUE]
+  n = nrow(dat)
+  
+  # unweighted
+  uni_W = rep(1,n)
+  res = cbind(res, weight_avg(x[dat$pg==1], uni_W[dat$pg==1], varname))
+  res = cbind(res, weight_avg(x[dat$pg==2], uni_W[dat$pg==2], varname))
+  res = cbind(res, weight_avg(x, uni_W, varname))
+  
+  # IPW
+  res = cbind(res, weight_avg(x, dat$ipw, varname))
+  
+  # OW
+  res = cbind(res, weight_avg(x, dat$ow, varname))
+  
+  res
+}
+
 ```
 
 
-### (c)
+```{r construct the weighted average table, echo=FALSE}
+tab = NULL
 
-|     |     |Unadjusted |       |    Adjusted |   |
-|-----|------|-------|-------|-------|----------|
-|     | **PG 1** | **PG 2** | **Overall** |  **IPW** |  **OW**  |
-| Age (yrs) |  40.45 | 39.65 |        | 
+data_orig = read_delim('HW2_data.txt', delim=' ',
+                  col_types = 'fnffffffnnnf')
+
+# get original continuous columns
+data_orig$ipw = data$ipw
+data_orig$ow = data$ow
+data_orig$ps = data$ps
+
+for(v in vars){
+  tab = rbind(tab, get_var_wa(data_orig, v))
+}
+
+tab = as.data.frame(tab)
+names(tab) = c('PG 1 (unadj.)', 'PG 2 (unadj.)', 
+               'Overall (unadj.)', 'IPW (adjusted)', 
+               'OW (adjusted)')
+knitr::kable(tab,digits=3)
+```
+
+
+<!-- |     |     |Unadjusted |       |    Adjusted |   | -->
+<!-- |-----|------|-------|-------|-------|----------| -->
+<!-- |     | **PG 1** | **PG 2** | **Overall** |  **IPW** |  **OW**  | -->
+<!-- | Age (yrs) |  40.45 | 39.65 |        |  -->
 
 

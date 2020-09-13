@@ -273,24 +273,236 @@ print(tabWeighted, smd = TRUE)</code></pre>
 <thead>
 <tr class="header">
 <th></th>
-<th></th>
-<th>Unadjusted</th>
-<th></th>
-<th>Adjusted</th>
-<th></th>
+<th align="right">PG 1 (unadj.)</th>
+<th align="right">PG 2 (unadj.)</th>
+<th align="right">Overall (unadj.)</th>
+<th align="right">IPW (adjusted)</th>
+<th align="right">OW (adjusted)</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td></td>
-<td>PG 1</td>
-<td>PG 2</td>
-<td>Overall</td>
-<td>IPW</td>
-<td>OW</td>
+<td>i_age</td>
+<td align="right">40.457</td>
+<td align="right">39.653</td>
+<td align="right">39.957</td>
+<td align="right">41.345</td>
+<td align="right">41.125</td>
+</tr>
+<tr class="even">
+<td>i_sex=0</td>
+<td align="right">0.238</td>
+<td align="right">0.347</td>
+<td align="right">0.306</td>
+<td align="right">0.288</td>
+<td align="right">0.285</td>
+</tr>
+<tr class="odd">
+<td>i_sex=1</td>
+<td align="right">0.762</td>
+<td align="right">0.653</td>
+<td align="right">0.694</td>
+<td align="right">0.712</td>
+<td align="right">0.715</td>
+</tr>
+<tr class="even">
+<td>i_race=1</td>
+<td align="right">0.838</td>
+<td align="right">0.642</td>
+<td align="right">0.716</td>
+<td align="right">0.739</td>
+<td align="right">0.824</td>
+</tr>
+<tr class="odd">
+<td>i_race=3</td>
+<td align="right">0.057</td>
+<td align="right">0.012</td>
+<td align="right">0.029</td>
+<td align="right">0.037</td>
+<td align="right">0.038</td>
+</tr>
+<tr class="even">
+<td>i_race=2</td>
+<td align="right">0.010</td>
+<td align="right">0.220</td>
+<td align="right">0.140</td>
+<td align="right">0.086</td>
+<td align="right">0.020</td>
+</tr>
+<tr class="odd">
+<td>i_race=4</td>
+<td align="right">0.067</td>
+<td align="right">0.069</td>
+<td align="right">0.068</td>
+<td align="right">0.068</td>
+<td align="right">0.075</td>
+</tr>
+<tr class="even">
+<td>i_race=0</td>
+<td align="right">0.029</td>
+<td align="right">0.058</td>
+<td align="right">0.047</td>
+<td align="right">0.071</td>
+<td align="right">0.043</td>
+</tr>
+<tr class="odd">
+<td>i_educ=5</td>
+<td align="right">0.257</td>
+<td align="right">0.428</td>
+<td align="right">0.363</td>
+<td align="right">0.356</td>
+<td align="right">0.321</td>
+</tr>
+<tr class="even">
+<td>i_educ=6</td>
+<td align="right">0.229</td>
+<td align="right">0.306</td>
+<td align="right">0.277</td>
+<td align="right">0.277</td>
+<td align="right">0.295</td>
+</tr>
+<tr class="odd">
+<td>i_educ=1</td>
+<td align="right">0.010</td>
+<td align="right">0.000</td>
+<td align="right">0.004</td>
+<td align="right">0.002</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td>i_educ=3</td>
+<td align="right">0.095</td>
+<td align="right">0.029</td>
+<td align="right">0.054</td>
+<td align="right">0.050</td>
+<td align="right">0.061</td>
+</tr>
+<tr class="odd">
+<td>i_educ=4</td>
+<td align="right">0.390</td>
+<td align="right">0.225</td>
+<td align="right">0.288</td>
+<td align="right">0.302</td>
+<td align="right">0.306</td>
+</tr>
+<tr class="even">
+<td>i_educ=2</td>
+<td align="right">0.019</td>
+<td align="right">0.012</td>
+<td align="right">0.014</td>
+<td align="right">0.013</td>
+<td align="right">0.016</td>
+</tr>
+<tr class="odd">
+<td>i_insu=1</td>
+<td align="right">0.686</td>
+<td align="right">0.647</td>
+<td align="right">0.662</td>
+<td align="right">0.703</td>
+<td align="right">0.721</td>
+</tr>
+<tr class="even">
+<td>i_insu=2</td>
+<td align="right">0.257</td>
+<td align="right">0.306</td>
+<td align="right">0.288</td>
+<td align="right">0.265</td>
+<td align="right">0.253</td>
+</tr>
+<tr class="odd">
+<td>i_insu=5</td>
+<td align="right">0.057</td>
+<td align="right">0.040</td>
+<td align="right">0.047</td>
+<td align="right">0.031</td>
+<td align="right">0.025</td>
+</tr>
+<tr class="even">
+<td>i_insu=3</td>
+<td align="right">0.000</td>
+<td align="right">0.006</td>
+<td align="right">0.004</td>
+<td align="right">0.002</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="odd">
+<td>i_drug=1</td>
+<td align="right">0.990</td>
+<td align="right">0.977</td>
+<td align="right">0.982</td>
+<td align="right">0.989</td>
+<td align="right">0.993</td>
+</tr>
+<tr class="even">
+<td>i_drug=0</td>
+<td align="right">0.010</td>
+<td align="right">0.023</td>
+<td align="right">0.018</td>
+<td align="right">0.011</td>
+<td align="right">0.007</td>
+</tr>
+<tr class="odd">
+<td>i_seve=2</td>
+<td align="right">0.238</td>
+<td align="right">0.231</td>
+<td align="right">0.234</td>
+<td align="right">0.250</td>
+<td align="right">0.251</td>
+</tr>
+<tr class="even">
+<td>i_seve=3</td>
+<td align="right">0.467</td>
+<td align="right">0.451</td>
+<td align="right">0.457</td>
+<td align="right">0.405</td>
+<td align="right">0.445</td>
+</tr>
+<tr class="odd">
+<td>i_seve=4</td>
+<td align="right">0.190</td>
+<td align="right">0.133</td>
+<td align="right">0.155</td>
+<td align="right">0.161</td>
+<td align="right">0.159</td>
+</tr>
+<tr class="even">
+<td>i_seve=1</td>
+<td align="right">0.105</td>
+<td align="right">0.185</td>
+<td align="right">0.155</td>
+<td align="right">0.184</td>
+<td align="right">0.145</td>
+</tr>
+<tr class="odd">
+<td>com_t</td>
+<td align="right">2.914</td>
+<td align="right">1.717</td>
+<td align="right">2.169</td>
+<td align="right">2.455</td>
+<td align="right">2.378</td>
+</tr>
+<tr class="even">
+<td>pcs_sd</td>
+<td align="right">41.415</td>
+<td align="right">48.298</td>
+<td align="right">45.698</td>
+<td align="right">46.381</td>
+<td align="right">45.376</td>
+</tr>
+<tr class="odd">
+<td>mcs_sd</td>
+<td align="right">48.939</td>
+<td align="right">48.420</td>
+<td align="right">48.616</td>
+<td align="right">47.527</td>
+<td align="right">48.430</td>
 </tr>
 </tbody>
 </table>
+<!-- |     |     |Unadjusted |       |    Adjusted |   | -->
+<!-- |-----|------|-------|-------|-------|----------| -->
+<!-- |     | **PG 1** | **PG 2** | **Overall** |  **IPW** |  **OW**  | -->
+<!-- | Age (yrs) |  40.45 | 39.65 |        |  -->
 </div>
 </div>
 
