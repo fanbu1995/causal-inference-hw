@@ -269,6 +269,7 @@ print(tabWeighted, smd = TRUE)</code></pre>
 </div>
 <div id="c" class="section level3">
 <h3>(c)</h3>
+<p>(The table generated in R Markdown is a bit ugly.. Sorry about that.)</p>
 <table>
 <thead>
 <tr class="header">
@@ -504,6 +505,42 @@ print(tabWeighted, smd = TRUE)</code></pre>
 <!-- |     | **PG 1** | **PG 2** | **Overall** |  **IPW** |  **OW**  | -->
 <!-- | Age (yrs) |  40.45 | 39.65 |        |  -->
 </div>
+</div>
+<div id="d" class="section level2">
+<h2>(d)</h2>
+<p>The table below summarizes ATE and ATO estimates (with un-normalized and normalized weights). Here the standard errors are calculated via bootstrap.</p>
+<p>ATE and ATO are different because they focus on different target populations. The former focuses on the entire (sample) population while the latter has much more emphasis on the overlapping portion of the sample population.</p>
+<p>Within each weighting scheme, we can see that when using normalized weights, the standard errors tend to be relatively lower.</p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">est. (un-normalized)</th>
+<th align="right">sd (un-normalized)</th>
+<th align="right">est. (normalized)</th>
+<th align="right">sd (normalized)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ATE</td>
+<td align="right">0.050</td>
+<td align="right">0.155</td>
+<td align="right">0.146</td>
+<td align="right">0.063</td>
+</tr>
+<tr class="even">
+<td>ATO</td>
+<td align="right">0.019</td>
+<td align="right">0.020</td>
+<td align="right">0.127</td>
+<td align="right">0.066</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="problem-2" class="section level2">
+<h2>Problem 2</h2>
 </div>
 
 
