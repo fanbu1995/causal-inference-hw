@@ -395,3 +395,159 @@ cat(round(ATE3,4), paste0('(',round(SD3,4),')'),'\n')
 I think, among the 3 possible options, only **(c)** is correct. Note that the estimand is $\mathbb{E}(Y(1)-Y(2) \mid V=1)$, which is the difference in satisfaction probability between the two groups **within the sex=1 sub-population**. Only **(c)** is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not.
 
 ## Problem 3
+
+I think **(c)** and **(d)** are correct. 
+
+**(a)** is wrong because we can't take $\delta$ as the estimate of the log odds ratio when the covariates $X$ are not centered. **(b)** is wrong because we can't just estimate $p_z$ within each group with treatment $z$, but should rather use the outcome model to "impute" the unobserved potential outcomes. **(e)** is not correct because the estimand is the **odds ratio**, and generally speaking, when using propensity score stratification, we should obtain an estimate for the target estimand and then combine across strata, rather than combine to obtain estimates for "intermediate" quantities (the $p_z$'s) and then compute an estimate for the estimand from those quantities.
+
+Now implement **(c)** and **(d)**. 
+
+First, obtain estimate and standard error (via bootstrap) using **(c)**.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+get_est_c <- function(d){
+  outcome.model = glm(i_aqoc ~ (i_age + i_sex + i_race + i_educ + 
+                                  i_insu + i_drug + i_seve + com_t + 
+                                  pcs_sd + mcs_sd) * pg, 
+                      data=d, family=binomial('logit'))
+  new = d
+  new$pg[new$pg==2] = 1
+  p1 = 1-mean(predict.glm(outcome.model, newdata = new, type = 'response'))
+  new$pg[new$pg==1] = 2
+  p2 = 1-mean(predict.glm(outcome.model, newdata = new, type = 'response'))
+  
+  #cat('p1=',p1,'p2=',p2,'\n')
+  
+  p1 * (1-p2) / (p2 * (1-p1))
+}
+
+get_sd_c <- function(d, B=2000){
+  n = nrow(d)
+  boot = sapply(1:B, function(i) {
+    d.samp = d[sample(n,replace = TRUE),]
+    
+    # re-adjust the factors
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x)) factor(x) else x)
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x) & length(levels(x))<2) as.numeric(x) else x)
+    
+    get_est_c(d.samp)
+  })
+  
+  sd(boot)
+}
+```
+
+```{r, eval=FALSE, warning=FALSE, message=FALSE,cache=TRUE}
+set.seed(79)
+est.c = get_est_c(data)
+sd.c = get_sd_c(data)
+
+cat('Using method (c): \n Estimate =', est.c,
+    'SD =', sd.c, '\n\n')
+```
+
+```{r, echo=FALSE}
+load('c_estimates.RData')
+cat('Using method (c): \n Estimate =', est.c,
+    'SD =', sd.c, '\n\n')
+```
+
+
+Then use the method in **(d)**.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+get_est_d <- function(d, plot=FALSE){
+  d[,c('i_age','com_t','pcs_sd','mcs_sd')] =
+    scale(d[,c('i_age','com_t','pcs_sd','mcs_sd')],
+          scale=FALSE)
+
+  ps.model = glm(pg ~ i_age + i_sex + i_race + i_educ + 
+                   i_insu + i_drug + i_seve + com_t + 
+                   pcs_sd + mcs_sd, 
+                 data=d, family=binomial('logit'))
+  
+  d$ps = ps.model$fitted.values
+  qs = quantile(d$ps, seq(0.2,0.8,by=0.2))
+  
+  #cat('\nPS quantiles:',qs,'\n')
+  
+  d = d %>% 
+    mutate(strata = case_when(
+      ps < qs[1]  ~ 1,
+      ps < qs[2]  ~ 2,
+      ps < qs[3]  ~ 3,
+      ps < qs[4]  ~ 4,
+      ps >= qs[4] ~ 5
+    ))
+  
+  if (plot){
+    print(
+      ggplot(d, aes(x=pg,fill=i_aqoc)) +
+        geom_bar(position='fill') +
+        facet_wrap(~strata)
+      )
+  }
+  
+  
+  ORs = numeric(5)
+  for (i in 1:5){
+    d_i = d %>% filter(strata==i)
+    satis1 = d_i %>% filter(pg==1) %>% select(i_aqoc) %>% pull()
+    #cat('length of satis1:', length(satis1),'\n')
+    if (length(satis1) > 0){
+        p1 = mean(satis1 == 1, na.rm=TRUE)
+      }else{
+        p1 = 1
+      }
+    if(p1 > 0.99){ p1 = 0.99 }else if(p1 < 0.01){ p1 = 0.01}
+    satis2 = d_i %>% filter(pg==2) %>% select(i_aqoc) %>% pull()
+    #cat('length of satis2:', length(satis2),'\n')
+    if (length(satis2) > 0){
+        p2 = mean(satis2 == 1, na.rm=TRUE)
+      }else{
+        p2 = 0
+      }
+    p2 = mean(satis2 == 1, na.rm=TRUE)
+    if(p2 > 0.99){ p2 = 0.99 }else if(p2 < 0.01){ p2 = 0.01}
+    OR_i = p1 * (1-p2) / (p2 * (1-p1))
+    
+    #cat('p1=',p1,'p2=',p2,'\n')
+    #cat('OR=', OR_i,'\n')
+    
+    ORs = c(ORs, OR_i)
+  }
+  
+  mean(ORs)
+}
+
+get_sd_d <- function(d, B=1000){
+  n = nrow(d)
+  boot = sapply(1:B, function(i) {
+    d.samp = d[sample(n,replace = TRUE),]
+    
+    # re-adjust the factors
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x)) factor(x) else x)
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x) & length(levels(x))<2) as.numeric(x) else x)
+    
+    get_est_d(d.samp)
+  })
+  
+  sd(boot)
+}
+```
+
+```{r, eval=FALSE, warning=FALSE, message=FALSE,cache=TRUE}
+set.seed(83)
+
+est.d = get_est_d(data)
+sd.d = get_sd_d(data)
+
+cat('Using method (d): \n Estimate =', est.d,
+    'SD =', sd.d, '\n\n')
+```
+
+```{r, echo=FALSE}
+load('d_estimates.RData')
+cat('Using method (d): \n Estimate =', est.c,
+    'SD =', sd.c, '\n\n')
+```

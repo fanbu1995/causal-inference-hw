@@ -508,9 +508,9 @@ print(tabWeighted, smd = TRUE)</code></pre>
 </div>
 <div id="d" class="section level2">
 <h2>(d)</h2>
-<p>The table below summarizes ATE and ATO estimates (with un-normalized and normalized weights). Here the standard errors are calculated via bootstrap.</p>
+<p>The table below summarizes ATE and ATO estimates (with un-normalized and normalized weights for ATE). Here the standard errors are calculated via bootstrap.</p>
 <p>ATE and ATO are different because they focus on different target populations. The former focuses on the entire (sample) population while the latter has much more emphasis on the overlapping portion of the sample population.</p>
-<p>Within each weighting scheme, we can see that when using normalized weights, the standard errors tend to be relatively lower.</p>
+<p>Within a weighting scheme, we can see that, for ATE (with IPW), when using normalized weights, the standard errors are relatively lower. (When using overlap weights, we should <strong>always</strong> normalize the weights, so we don’t do an un-normalized version here.) <!-- though this isn't exactly the case for ATO, where we don't see much difference in the (relative) scale of the standard errors.  --></p>
 <table>
 <thead>
 <tr class="header">
@@ -524,23 +524,121 @@ print(tabWeighted, smd = TRUE)</code></pre>
 <tbody>
 <tr class="odd">
 <td>ATE</td>
-<td align="right">0.050</td>
-<td align="right">0.155</td>
+<td align="right">0.05</td>
+<td align="right">0.232</td>
 <td align="right">0.146</td>
-<td align="right">0.063</td>
+<td align="right">0.073</td>
 </tr>
 <tr class="even">
 <td>ATO</td>
-<td align="right">0.019</td>
-<td align="right">0.020</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
 <td align="right">0.127</td>
-<td align="right">0.066</td>
+<td align="right">0.067</td>
 </tr>
 </tbody>
 </table>
 </div>
 <div id="problem-2" class="section level2">
 <h2>Problem 2</h2>
+<div id="a-1" class="section level3">
+<h3>(a)</h3>
+<p>Estimate PS with <code>sex</code> included, and then do IPW.</p>
+<pre class="r"><code>ps.model = glm(pg ~ i_age + i_sex + i_race + i_educ + 
+                 i_insu + i_drug + i_seve + com_t + 
+                 pcs_sd + mcs_sd, 
+               data=data, family=binomial('logit'))
+data$ps = ps.model$fitted.values %&gt;% as.numeric()
+
+data$ipw = 1
+data$ipw[data$pg == 2] = 1/data$ps[data$pg == 2]
+data$ipw[data$pg == 1] = 1/(1-data$ps[data$pg == 1])</code></pre>
+<p>The ATE estimate (and standard error) is</p>
+<pre class="r"><code>data_sex = data %&gt;% filter(i_sex==1)
+ATE1 = get_weighted_tau(data_sex$i_aqoc, data_sex$pg, 
+                        data_sex$ipw, normalize = TRUE)
+#SD1 = get_sd(data_sex$i_aqoc, data_sex$pg, 
+#             data_sex$ipw, normalize = TRUE)
+SD1 = get_sd(d=data, ps.model$formula, weight='ipw', 
+             normalize=TRUE, subset=(data$i_sex==1))
+cat(round(ATE1,4), paste0('(',round(SD1,4),')'),'\n')</code></pre>
+<pre><code>## 0.1115 (0.0854)</code></pre>
+</div>
+<div id="b-1" class="section level3">
+<h3>(b)</h3>
+<p>Estimate PS without <code>sex</code> as a variable in the logistic regression model, and then do IPW.</p>
+<pre class="r"><code>ps.model = glm(pg ~ i_age + i_race + i_educ + 
+                 i_insu + i_drug + i_seve + com_t + 
+                 pcs_sd + mcs_sd, 
+               data=data, family=binomial('logit'))
+data$ps = ps.model$fitted.values %&gt;% as.numeric()
+
+data$ipw = 1
+data$ipw[data$pg == 2] = 1/data$ps[data$pg == 2]
+data$ipw[data$pg == 1] = 1/(1-data$ps[data$pg == 1])</code></pre>
+<p>The ATE estimate (and standard error) is</p>
+<pre class="r"><code>data_sex = data %&gt;% filter(i_sex==1)
+ATE2 = get_weighted_tau(data_sex$i_aqoc, data_sex$pg, 
+                        data_sex$ipw, normalize = TRUE)
+#SD2 = get_sd(data_sex$i_aqoc, data_sex$pg, 
+#             data_sex$ipw, normalize = TRUE)
+SD2 = get_sd(d=data, ps.model$formula, weight='ipw', 
+             normalize=TRUE, subset=(data$i_sex==1))
+cat(round(ATE2,4), paste0('(',round(SD2,4),')'),'\n')</code></pre>
+<pre><code>## 0.1124 (0.0863)</code></pre>
+</div>
+<div id="c-1" class="section level3">
+<h3>(c)</h3>
+<p>Within the sub-group of <code>sex=1</code>, estimate PS with all variables except <code>sex</code> and then do IPW.</p>
+<pre class="r"><code>data_sex = data %&gt;% filter(i_sex==1)
+ps.model = glm(pg ~ i_age + i_race + i_educ + 
+                 i_insu + i_drug + i_seve + com_t + 
+                 pcs_sd + mcs_sd, 
+               data=data_sex, 
+               family=binomial('logit'))
+
+data_sex$ps = ps.model$fitted.values %&gt;% as.numeric()
+
+data_sex$ipw = 1
+data_sex$ipw[data_sex$pg == 2] = 1/data_sex$ps[data_sex$pg == 2]
+data_sex$ipw[data_sex$pg == 1] = 1/(1-data_sex$ps[data_sex$pg == 1])</code></pre>
+<p>The ATE estimate (and standard error) is</p>
+<pre class="r"><code>ATE3 = get_weighted_tau(data_sex$i_aqoc, data_sex$pg, 
+                        data_sex$ipw, normalize = TRUE)
+#SD3 = get_sd(data_sex$i_aqoc, data_sex$pg, 
+#             data_sex$ipw, normalize = TRUE)
+SD3 = get_sd(d=data_sex, ps.model$formula, weight='ipw', 
+             normalize=TRUE, subset=NULL)
+cat(round(ATE3,4), paste0('(',round(SD3,4),')'),'\n')</code></pre>
+<pre><code>## 0.1303 (0.09)</code></pre>
+<p><strong>(a)</strong> and <strong>(b)</strong> give us similar results, while <strong>(c)</strong> produces a slightly different one.</p>
+<p>I think, among the 3 possible options, only <strong>(c)</strong> is correct. Note that the estimand is <span class="math inline">\(\mathbb{E}(Y(1)-Y(2) \mid V=1)\)</span>, which is the difference in satisfaction probability between the two groups <strong>within the sex=1 sub-population</strong>. Only <strong>(c)</strong> is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not.</p>
+</div>
+</div>
+<div id="problem-3" class="section level2">
+<h2>Problem 3</h2>
+<p>I think <strong>(c)</strong> and <strong>(d)</strong> are correct.</p>
+<p><strong>(a)</strong> is wrong because we can’t take <span class="math inline">\(\delta\)</span> as the estimate of the log odds ratio when the covariates <span class="math inline">\(X\)</span> are not centered. <strong>(b)</strong> is wrong because we can’t just estimate <span class="math inline">\(p_z\)</span> within each group with treatment <span class="math inline">\(z\)</span>, but should rather use the outcome model to “impute” the unobserved potential outcomes. <strong>(e)</strong> is not correct because the estimand is the <strong>odds ratio</strong>, and generally speaking, when using propensity score stratification, we should obtain an estimate for the target estimand and then combine across strata, rather than combine to obtain estimates for “intermediate” quantities (the <span class="math inline">\(p_z\)</span>’s) and then compute an estimate for the estimand from those quantities.</p>
+<p>Now implement <strong>(c)</strong> and <strong>(d)</strong>.</p>
+<p>First, obtain estimate and standard error (via bootstrap) using <strong>(c)</strong>.</p>
+<pre class="r"><code>set.seed(79)
+est.c = get_est_c(data)
+sd.c = get_sd_c(data)
+
+cat('Using method (c): \n Estimate =', est.c,
+    'SD =', sd.c, '\n\n')</code></pre>
+<pre><code>## Using method (c): 
+##  Estimate = 1.376544 SD = 0.7592978</code></pre>
+<p>Then use the method in <strong>(d)</strong>.</p>
+<pre class="r"><code>set.seed(83)
+
+est.d = get_est_d(data)
+sd.d = get_sd_d(data)
+
+cat('Using method (d): \n Estimate =', est.d,
+    'SD =', sd.d, '\n\n')</code></pre>
+<pre><code>## Using method (d): 
+##  Estimate = 8.489154 SD = 5.704671</code></pre>
 </div>
 
 
