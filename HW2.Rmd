@@ -206,11 +206,12 @@ knitr::kable(tab,digits=3)
 
 ## (d)
 
-The table below summarizes ATE and ATO estimates (with un-normalized and normalized weights). Here the standard errors are calculated via bootstrap.
+The table below summarizes ATE and ATO estimates (with un-normalized and normalized weights for ATE). Here the standard errors are calculated via bootstrap.
 
 ATE and ATO are different because they focus on different target populations. The former focuses on the entire (sample) population while the latter has much more emphasis on the overlapping portion of the sample population. 
 
-Within each weighting scheme, we can see that when using normalized weights, the standard errors tend to be relatively lower.
+Within a weighting scheme, we can see that, for ATE (with IPW), when using normalized weights, the standard errors are relatively lower. (When using overlap weights, we should **always** normalize the weights, so we don't do an un-normalized version here.)
+<!-- though this isn't exactly the case for ATO, where we don't see much difference in the (relative) scale of the standard errors.  -->
 
 ```{r, echo=FALSE}
 get_weighted_tau <- function(y, z, w, normalize=TRUE){
@@ -224,31 +225,74 @@ get_weighted_tau <- function(y, z, w, normalize=TRUE){
   tau
 }
 
-get_sd <- function(y,z,w,B=5000,normalize=TRUE){
-  n = length(y)
+# get_sd <- function(y,z,w,B=5000,normalize=TRUE){
+#   n = length(y)
+#   boot = sapply(1:B, function(i) {
+#     samp = sample(n,replace = TRUE)
+#     get_weighted_tau(y[samp],z[samp],w[samp],normalize)
+#   })
+#   #print(boot)
+#   sd(boot)
+# }
+
+get_sd <- function(d, ps_formula, weight='ipw', 
+                   normalize=TRUE, B=1000, subset=NULL){
+  n = nrow(d)
+  inds1 = which(d$pg == 1); n1 = length(inds1)
+  inds2 = which(d$pg == 2); n2 = length(inds2)
   boot = sapply(1:B, function(i) {
-    samp = sample(n,replace = TRUE)
-    get_weighted_tau(y[samp],z[samp],w[samp],normalize)
+    d.samp = d[sample(n,replace = TRUE),]
+    #d.samp = d[c(sample(inds1, replace=TRUE), sample(inds2, replace=TRUE)),]
+    #d.samp = d.samp %>% distinct()
+    
+    # re-adjust the factors
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x)) factor(x) else x)
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x) & length(levels(x))<2) as.numeric(x) else x)
+    
+    ps = glm(ps_formula, data=d.samp, family=binomial('logit'))$fitted.values %>% as.numeric()
+
+    d.samp$ipw = 1
+    d.samp$ipw[d.samp$pg == 2] = 1/ps[d.samp$pg == 2]
+    d.samp$ipw[d.samp$pg == 1] = 1/(1-ps[d.samp$pg == 1])
+
+    d.samp$ow = 1
+    d.samp$ow[d.samp$pg == 2] = 1 - ps[d.samp$pg == 2]
+    d.samp$ow[d.samp$pg == 1] = ps[d.samp$pg == 1]
+    
+    if (is.null(subset)){
+      get_weighted_tau(d.samp$i_aqoc, d.samp$pg, 
+                     d.samp[, weight, drop=TRUE], normalize)
+    }else{
+      d.samp = d.samp[subset,]
+      get_weighted_tau(d.samp$i_aqoc, d.samp$pg, 
+                     d.samp[, weight, drop=TRUE], normalize)
+    }
+    
   })
-  #print(boot)
   sd(boot)
 }
 
 ```
 
 
-```{r,echo=FALSE,eval=FALSE}
+```{r,echo=FALSE,eval=FALSE,warning=FALSE, message=FALSE}
+ff = ps.model$formula
+
 ATE = NULL
 ATE = c(ATE, get_weighted_tau(data$i_aqoc, data$pg, data$ipw, normalize = FALSE))
-ATE = c(ATE, get_sd(data$i_aqoc, data$pg, data$ipw, normalize = FALSE))
+#ATE = c(ATE, get_sd(data$i_aqoc, data$pg, data$ipw, normalize = FALSE))
+ATE = c(ATE, get_sd(data, ff, "ipw", normalize = FALSE))
 ATE = c(ATE, get_weighted_tau(data$i_aqoc, data$pg, data$ipw, normalize = TRUE))
-ATE = c(ATE, get_sd(data$i_aqoc, data$pg, data$ipw, normalize = TRUE))
+#ATE = c(ATE, get_sd(data$i_aqoc, data$pg, data$ipw, normalize = TRUE))
+ATE = c(ATE, get_sd(data, ff, "ipw", normalize = TRUE))
 
 ATO = NULL
 ATO = c(ATO, get_weighted_tau(data$i_aqoc, data$pg, data$ow, normalize = FALSE))
-ATO = c(ATO, get_sd(data$i_aqoc, data$pg, data$ow, normalize = FALSE))
+#ATO = c(ATO, get_sd(data$i_aqoc, data$pg, data$ow, normalize = FALSE))
+ATO = c(ATO, get_sd(data, ff, "ow", normalize = FALSE))
 ATO = c(ATO, get_weighted_tau(data$i_aqoc, data$pg, data$ow, normalize = TRUE))
-ATO = c(ATO, get_sd(data$i_aqoc, data$pg, data$ow, normalize = TRUE))
+#ATO = c(ATO, get_sd(data$i_aqoc, data$pg, data$ow, normalize = TRUE))
+ATO = c(ATO, get_sd(data, ff, "ow", normalize = TRUE))
 
 res = rbind(ATE, ATO)
 res = as.data.frame(res)
@@ -257,7 +301,8 @@ names(res) = c('est. (un-normalized)', 'sd (un-normalized)',
 ```
 
 ```{r,echo=FALSE}
-res = readRDS('ATE_ATO_res.rds')
+res = readRDS('ATE_ATO_res2.rds')
+res[2,1:2] = NA
 knitr::kable(res,digits = 3)
 ```
 
@@ -274,17 +319,19 @@ ps.model = glm(pg ~ i_age + i_sex + i_race + i_educ +
 data$ps = ps.model$fitted.values %>% as.numeric()
 
 data$ipw = 1
-data$ipw[data$pg == 2] = 1/ps[data$pg == 2]
-data$ipw[data$pg == 1] = 1/(1-ps[data$pg == 1])
+data$ipw[data$pg == 2] = 1/data$ps[data$pg == 2]
+data$ipw[data$pg == 1] = 1/(1-data$ps[data$pg == 1])
 ```
 
 The ATE estimate (and standard error) is
-```{r}
+```{r, warning=FALSE, message=FALSE, cache=TRUE}
 data_sex = data %>% filter(i_sex==1)
 ATE1 = get_weighted_tau(data_sex$i_aqoc, data_sex$pg, 
                         data_sex$ipw, normalize = TRUE)
-SD1 = get_sd(data_sex$i_aqoc, data_sex$pg, 
-             data_sex$ipw, normalize = TRUE)
+#SD1 = get_sd(data_sex$i_aqoc, data_sex$pg, 
+#             data_sex$ipw, normalize = TRUE)
+SD1 = get_sd(d=data, ps.model$formula, weight='ipw', 
+             normalize=TRUE, subset=(data$i_sex==1))
 cat(round(ATE1,4), paste0('(',round(SD1,4),')'),'\n')
 ```
 
@@ -303,12 +350,14 @@ data$ipw[data$pg == 1] = 1/(1-data$ps[data$pg == 1])
 ```
 
 The ATE estimate (and standard error) is
-```{r}
+```{r, warning=FALSE, message=FALSE, cache=TRUE}
 data_sex = data %>% filter(i_sex==1)
 ATE2 = get_weighted_tau(data_sex$i_aqoc, data_sex$pg, 
                         data_sex$ipw, normalize = TRUE)
-SD2 = get_sd(data_sex$i_aqoc, data_sex$pg, 
-             data_sex$ipw, normalize = TRUE)
+#SD2 = get_sd(data_sex$i_aqoc, data_sex$pg, 
+#             data_sex$ipw, normalize = TRUE)
+SD2 = get_sd(d=data, ps.model$formula, weight='ipw', 
+             normalize=TRUE, subset=(data$i_sex==1))
 cat(round(ATE2,4), paste0('(',round(SD2,4),')'),'\n')
 ```
 
@@ -331,17 +380,18 @@ data_sex$ipw[data_sex$pg == 1] = 1/(1-data_sex$ps[data_sex$pg == 1])
 ```
 
 The ATE estimate (and standard error) is
-```{r}
+```{r, warning=FALSE, message=FALSE, cache=TRUE}
 ATE3 = get_weighted_tau(data_sex$i_aqoc, data_sex$pg, 
                         data_sex$ipw, normalize = TRUE)
-SD3 = get_sd(data_sex$i_aqoc, data_sex$pg, 
-             data_sex$ipw, normalize = TRUE)
+#SD3 = get_sd(data_sex$i_aqoc, data_sex$pg, 
+#             data_sex$ipw, normalize = TRUE)
+SD3 = get_sd(d=data_sex, ps.model$formula, weight='ipw', 
+             normalize=TRUE, subset=NULL)
 cat(round(ATE3,4), paste0('(',round(SD3,4),')'),'\n')
 ```
 
-**(a)** and **(b)** give us very similar results, while **(c)** produces a slightly different one.
+**(a)** and **(b)** give us similar results, while **(c)** produces a slightly different one.
 
 I think, among the 3 possible options, only **(c)** is correct. Note that the estimand is $\mathbb{E}(Y(1)-Y(2) \mid V=1)$, which is the difference in satisfaction probability between the two groups **within the sex=1 sub-population**. Only **(c)** is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not.
 
 ## Problem 3
-### 
