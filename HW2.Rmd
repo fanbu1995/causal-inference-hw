@@ -48,7 +48,7 @@ data$ow[data$pg == 2] = 1 - ps[data$pg == 2]
 data$ow[data$pg == 1] = ps[data$pg == 1]
 ```
 
-Examine covariate balance. Here we have achieved good balance (ASD < 0.1) for some of the covariates, but for the others, there is still imbalance.
+Examine covariate balance (here I'm using the unnormalized ASD version, with commonly used threshold 0.1). Here we have achieved good balance (ASD < 0.1) for some of the covariates, but for the others, there is still imbalance.
 
 Note that there does exist a couple of subjects (subject 5 and 130) with extremely low ($<0.001$) or extremely high ($>0.999$) estimated propensity scores. And here I will exclude those extreme subjects. 
 ```{r}
@@ -308,6 +308,8 @@ knitr::kable(res,digits = 3)
 
 ## Problem 2
 
+In this problem, all standard deviations are calculated via bootstrap, where in each iteration the PS model is re-fitted. 
+
 ### (a) 
 
 Estimate PS with `sex` included, and then do IPW.
@@ -392,15 +394,22 @@ cat(round(ATE3,4), paste0('(',round(SD3,4),')'),'\n')
 
 **(a)** and **(b)** give us similar results, while **(c)** produces a slightly different one.
 
-I think, among the 3 possible options, only **(c)** is correct. Note that the estimand is $\mathbb{E}(Y(1)-Y(2) \mid V=1)$, which is the difference in satisfaction probability between the two groups **within the sex=1 sub-population**. Only **(c)** is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not.
+I think, among the 3 possible options, **(a)** and **(c)** are correct, while **(b)** isn't. 
+<!-- Note that the estimand is $\mathbb{E}(Y(1)-Y(2) \mid V=1)$, which is the difference in satisfaction probability between the two groups **within the sex=1 sub-population**. Only **(c)** is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not. -->
+
+Note that to ensure the validity of a method, the propensity score $e(X)$ should make the covariates $X$ independent of treatment $Z$ conditional on $e(X)$ and $V=1$ (denoted by condition **W**). In **(a)**, the PS model is fitted with $V$ as a covariate, thus making $X$ **and** $V$ independent of the treatment given $e(X)$, which satisfies condition **W** ; in **(c)**, the PS model is fitted conditioned on $V=1$, which also satisfies condition **W**. 
 
 ## Problem 3
 
-I think **(c)** and **(d)** are correct. 
+**(c)** and **(e)** are correct. 
 
-**(a)** is wrong because we can't take $\delta$ as the estimate of the log odds ratio when the covariates $X$ are not centered. **(b)** is wrong because we can't just estimate $p_z$ within each group with treatment $z$, but should rather use the outcome model to "impute" the unobserved potential outcomes. **(e)** is not correct because the estimand is the **odds ratio**, and generally speaking, when using propensity score stratification, we should obtain an estimate for the target estimand and then combine across strata, rather than combine to obtain estimates for "intermediate" quantities (the $p_z$'s) and then compute an estimate for the estimand from those quantities.
+**(a)** is wrong because we can't take $\delta$ as the estimate of the log odds ratio where there is an interaction term between covariates $X$ and treatment $Z$ (unless the covariates $X$ are centered). **(b)** is wrong because we can't just estimate $p_z$ within each group with treatment $z$, but should rather use the outcome model to "impute" the unobserved potential outcomes. 
 
-Now implement **(c)** and **(d)**. 
+**(d)** is incorrect because odds ratio is a nonlinear function of $p1$ and $p2$, so we can't estimate it within each block and simply average over the block estimates (the expectation of a nonlinear function is **not** the function of expectation). 
+
+<!-- **(e)** is not correct because the estimand is the **odds ratio**, and generally speaking, when using propensity score stratification, we should obtain an estimate for the target estimand and then combine across strata, rather than combine to obtain estimates for "intermediate" quantities (the $p_z$'s) and then compute an estimate for the estimand from those quantities. -->
+
+Now implement **(c)** and **(e)**. 
 
 First, obtain estimate and standard error (via bootstrap) using **(c)**.
 
@@ -453,10 +462,10 @@ cat('Using method (c): \n Estimate =', est.c,
 ```
 
 
-Then use the method in **(d)**.
+Then use the method in **(e)**. (Still, obtain the estimate and then calculate standard errors via bootstrap.)
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-get_est_d <- function(d, plot=FALSE){
+get_est_e <- function(d, plot=FALSE){
   d[,c('i_age','com_t','pcs_sd','mcs_sd')] =
     scale(d[,c('i_age','com_t','pcs_sd','mcs_sd')],
           scale=FALSE)
@@ -489,38 +498,70 @@ get_est_d <- function(d, plot=FALSE){
   }
   
   
-  ORs = numeric(5)
+  # ORs = numeric(5)
+  # for (i in 1:5){
+  #   d_i = d %>% filter(strata==i)
+  #   satis1 = d_i %>% filter(pg==1) %>% select(i_aqoc) %>% pull()
+  #   #cat('length of satis1:', length(satis1),'\n')
+  #   if (length(satis1) > 0){
+  #       p1 = mean(satis1 == 1, na.rm=TRUE)
+  #     }else{
+  #       p1 = 1
+  #     }
+  #   if(p1 > 0.99){ p1 = 0.99 }else if(p1 < 0.01){ p1 = 0.01}
+  #   satis2 = d_i %>% filter(pg==2) %>% select(i_aqoc) %>% pull()
+  #   #cat('length of satis2:', length(satis2),'\n')
+  #   if (length(satis2) > 0){
+  #       p2 = mean(satis2 == 1, na.rm=TRUE)
+  #     }else{
+  #       p2 = 0
+  #     }
+  #   p2 = mean(satis2 == 1, na.rm=TRUE)
+  #   if(p2 > 0.99){ p2 = 0.99 }else if(p2 < 0.01){ p2 = 0.01}
+  #   OR_i = p1 * (1-p2) / (p2 * (1-p1))
+  #   
+  #   #cat('p1=',p1,'p2=',p2,'\n')
+  #   #cat('OR=', OR_i,'\n')
+  #   
+  #   ORs = c(ORs, OR_i)
+  # }
+  
+  P1s = numeric(5); P2s = numeric(5)
   for (i in 1:5){
     d_i = d %>% filter(strata==i)
     satis1 = d_i %>% filter(pg==1) %>% select(i_aqoc) %>% pull()
     #cat('length of satis1:', length(satis1),'\n')
-    if (length(satis1) > 0){
-        p1 = mean(satis1 == 1, na.rm=TRUE)
-      }else{
-        p1 = 1
-      }
-    if(p1 > 0.99){ p1 = 0.99 }else if(p1 < 0.01){ p1 = 0.01}
+    # if (length(satis1) > 0){
+    #     p1 = mean(satis1 == 1, na.rm=TRUE)
+    #   }else{
+    #     p1 = 1
+    #   }
+    # if(p1 > 0.99){ p1 = 0.99 }else if(p1 < 0.01){ p1 = 0.01}
+    P1s = c(P1s, mean(satis1==1))
+    
     satis2 = d_i %>% filter(pg==2) %>% select(i_aqoc) %>% pull()
     #cat('length of satis2:', length(satis2),'\n')
-    if (length(satis2) > 0){
-        p2 = mean(satis2 == 1, na.rm=TRUE)
-      }else{
-        p2 = 0
-      }
-    p2 = mean(satis2 == 1, na.rm=TRUE)
-    if(p2 > 0.99){ p2 = 0.99 }else if(p2 < 0.01){ p2 = 0.01}
-    OR_i = p1 * (1-p2) / (p2 * (1-p1))
-    
-    #cat('p1=',p1,'p2=',p2,'\n')
+    # if (length(satis2) > 0){
+    #     p2 = mean(satis2 == 1, na.rm=TRUE)
+    #   }else{
+    #     p2 = 0
+    #   }
+    # p2 = mean(satis2 == 1, na.rm=TRUE)
+    # if(p2 > 0.99){ p2 = 0.99 }else if(p2 < 0.01){ p2 = 0.01}
+    # OR_i = p1 * (1-p2) / (p2 * (1-p1))
+    P2s = c(P2s, mean(satis2==1))
+
+    #cat('p1=',mean(satis1==1),'p2=',mean(satis2==1),'\n')
     #cat('OR=', OR_i,'\n')
-    
-    ORs = c(ORs, OR_i)
+
+    #ORs = c(ORs, OR_i)
   }
   
-  mean(ORs)
+  p1 = mean(P1s,na.rm=T); p2 = mean(P2s,na.rm=T)
+  p1 * (1-p2) / (p2 * (1-p1))
 }
 
-get_sd_d <- function(d, B=1000){
+get_sd_e <- function(d, B=1000){
   n = nrow(d)
   boot = sapply(1:B, function(i) {
     d.samp = d[sample(n,replace = TRUE),]
@@ -529,7 +570,7 @@ get_sd_d <- function(d, B=1000){
     d.samp[] <- lapply(d.samp, function(x) if(is.factor(x)) factor(x) else x)
     d.samp[] <- lapply(d.samp, function(x) if(is.factor(x) & length(levels(x))<2) as.numeric(x) else x)
     
-    get_est_d(d.samp)
+    get_est_e(d.samp)
   })
   
   sd(boot)
@@ -539,15 +580,15 @@ get_sd_d <- function(d, B=1000){
 ```{r, eval=FALSE, warning=FALSE, message=FALSE,cache=TRUE}
 set.seed(83)
 
-est.d = get_est_d(data)
-sd.d = get_sd_d(data)
+est.e = get_est_e(data)
+sd.e = get_sd_e(data)
 
-cat('Using method (d): \n Estimate =', est.d,
-    'SD =', sd.d, '\n\n')
+cat('Using method (e): \n Estimate =', est.e,
+    'SD =', sd.e, '\n\n')
 ```
 
 ```{r, echo=FALSE}
-load('d_estimates.RData')
-cat('Using method (d): \n Estimate =', est.c,
+load('e_estimates.RData')
+cat('Using method (e): \n Estimate =', est.c,
     'SD =', sd.c, '\n\n')
 ```

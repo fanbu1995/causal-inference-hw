@@ -212,7 +212,7 @@ data$ipw[data$pg == 1] = 1/(1-ps[data$pg == 1])
 data$ow = 1
 data$ow[data$pg == 2] = 1 - ps[data$pg == 2]
 data$ow[data$pg == 1] = ps[data$pg == 1]</code></pre>
-<p>Examine covariate balance. Here we have achieved good balance (ASD &lt; 0.1) for some of the covariates, but for the others, there is still imbalance.</p>
+<p>Examine covariate balance (here I’m using the unnormalized ASD version, with commonly used threshold 0.1). Here we have achieved good balance (ASD &lt; 0.1) for some of the covariates, but for the others, there is still imbalance.</p>
 <p>Note that there does exist a couple of subjects (subject 5 and 130) with extremely low (<span class="math inline">\(&lt;0.001\)</span>) or extremely high (<span class="math inline">\(&gt;0.999\)</span>) estimated propensity scores. And here I will exclude those extreme subjects.</p>
 <pre class="r"><code>## Weighted data
 dataIPW &lt;- svydesign(ids = ~ 1, 
@@ -541,6 +541,7 @@ print(tabWeighted, smd = TRUE)</code></pre>
 </div>
 <div id="problem-2" class="section level2">
 <h2>Problem 2</h2>
+<p>In this problem, all standard deviations are calculated via bootstrap, where in each iteration the PS model is re-fitted.</p>
 <div id="a-1" class="section level3">
 <h3>(a)</h3>
 <p>Estimate PS with <code>sex</code> included, and then do IPW.</p>
@@ -612,14 +613,17 @@ SD3 = get_sd(d=data_sex, ps.model$formula, weight='ipw',
 cat(round(ATE3,4), paste0('(',round(SD3,4),')'),'\n')</code></pre>
 <pre><code>## 0.1303 (0.09)</code></pre>
 <p><strong>(a)</strong> and <strong>(b)</strong> give us similar results, while <strong>(c)</strong> produces a slightly different one.</p>
-<p>I think, among the 3 possible options, only <strong>(c)</strong> is correct. Note that the estimand is <span class="math inline">\(\mathbb{E}(Y(1)-Y(2) \mid V=1)\)</span>, which is the difference in satisfaction probability between the two groups <strong>within the sex=1 sub-population</strong>. Only <strong>(c)</strong> is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not.</p>
+<p>I think, among the 3 possible options, <strong>(a)</strong> and <strong>(c)</strong> are correct, while <strong>(b)</strong> isn’t. <!-- Note that the estimand is $\mathbb{E}(Y(1)-Y(2) \mid V=1)$, which is the difference in satisfaction probability between the two groups **within the sex=1 sub-population**. Only **(c)** is dealing with the correct target population when estimating the propensity score and doing the weighting, while the other two options are not. --></p>
+<p>Note that to ensure the validity of a method, the propensity score <span class="math inline">\(e(X)\)</span> should make the covariates <span class="math inline">\(X\)</span> independent of treatment <span class="math inline">\(Z\)</span> conditional on <span class="math inline">\(e(X)\)</span> and <span class="math inline">\(V=1\)</span> (denoted by condition <strong>W</strong>). In <strong>(a)</strong>, the PS model is fitted with <span class="math inline">\(V\)</span> as a covariate, thus making <span class="math inline">\(X\)</span> <strong>and</strong> <span class="math inline">\(V\)</span> independent of the treatment given <span class="math inline">\(e(X)\)</span>, which satisfies condition <strong>W</strong> ; in <strong>(c)</strong>, the PS model is fitted conditioned on <span class="math inline">\(V=1\)</span>, which also satisfies condition <strong>W</strong>.</p>
 </div>
 </div>
 <div id="problem-3" class="section level2">
 <h2>Problem 3</h2>
-<p>I think <strong>(c)</strong> and <strong>(d)</strong> are correct.</p>
-<p><strong>(a)</strong> is wrong because we can’t take <span class="math inline">\(\delta\)</span> as the estimate of the log odds ratio when the covariates <span class="math inline">\(X\)</span> are not centered. <strong>(b)</strong> is wrong because we can’t just estimate <span class="math inline">\(p_z\)</span> within each group with treatment <span class="math inline">\(z\)</span>, but should rather use the outcome model to “impute” the unobserved potential outcomes. <strong>(e)</strong> is not correct because the estimand is the <strong>odds ratio</strong>, and generally speaking, when using propensity score stratification, we should obtain an estimate for the target estimand and then combine across strata, rather than combine to obtain estimates for “intermediate” quantities (the <span class="math inline">\(p_z\)</span>’s) and then compute an estimate for the estimand from those quantities.</p>
-<p>Now implement <strong>(c)</strong> and <strong>(d)</strong>.</p>
+<p><strong>(c)</strong> and <strong>(e)</strong> are correct.</p>
+<p><strong>(a)</strong> is wrong because we can’t take <span class="math inline">\(\delta\)</span> as the estimate of the log odds ratio where there is an interaction term between covariates <span class="math inline">\(X\)</span> and treatment <span class="math inline">\(Z\)</span> (unless the covariates <span class="math inline">\(X\)</span> are centered). <strong>(b)</strong> is wrong because we can’t just estimate <span class="math inline">\(p_z\)</span> within each group with treatment <span class="math inline">\(z\)</span>, but should rather use the outcome model to “impute” the unobserved potential outcomes.</p>
+<p><strong>(d)</strong> is incorrect because odds ratio is a nonlinear function of <span class="math inline">\(p1\)</span> and <span class="math inline">\(p2\)</span>, so we can’t estimate it within each block and simply average over the block estimates (the expectation of a nonlinear function is <strong>not</strong> the function of expectation).</p>
+<!-- **(e)** is not correct because the estimand is the **odds ratio**, and generally speaking, when using propensity score stratification, we should obtain an estimate for the target estimand and then combine across strata, rather than combine to obtain estimates for "intermediate" quantities (the $p_z$'s) and then compute an estimate for the estimand from those quantities. -->
+<p>Now implement <strong>(c)</strong> and <strong>(e)</strong>.</p>
 <p>First, obtain estimate and standard error (via bootstrap) using <strong>(c)</strong>.</p>
 <pre class="r"><code>set.seed(79)
 est.c = get_est_c(data)
@@ -629,16 +633,16 @@ cat('Using method (c): \n Estimate =', est.c,
     'SD =', sd.c, '\n\n')</code></pre>
 <pre><code>## Using method (c): 
 ##  Estimate = 1.376544 SD = 0.7592978</code></pre>
-<p>Then use the method in <strong>(d)</strong>.</p>
+<p>Then use the method in <strong>(e)</strong>. (Still, obtain the estimate and then calculate standard errors via bootstrap.)</p>
 <pre class="r"><code>set.seed(83)
 
-est.d = get_est_d(data)
-sd.d = get_sd_d(data)
+est.e = get_est_e(data)
+sd.e = get_sd_e(data)
 
-cat('Using method (d): \n Estimate =', est.d,
-    'SD =', sd.d, '\n\n')</code></pre>
-<pre><code>## Using method (d): 
-##  Estimate = 8.489154 SD = 5.704671</code></pre>
+cat('Using method (e): \n Estimate =', est.e,
+    'SD =', sd.e, '\n\n')</code></pre>
+<pre><code>## Using method (e): 
+##  Estimate = 1.376544 SD = 0.7592978</code></pre>
 </div>
 
 
