@@ -1,0 +1,187 @@
+---
+title: "STA640 Homework 3"
+author: "Fan Bu"
+date: "10/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages, echo=FALSE, message=FALSE, warning=FALSE}
+library(foreign)
+library(tidyverse)
+library(PSweight)
+library(tableone)
+library(survey)
+library(reshape2)
+```
+
+
+## Problem 1
+
+Load the data first (I also checked that there is no missing values). 
+
+```{r load data}
+debit = read.dta("debitcard199598.dta")
+```
+
+Since we have `spending1995`, we can use it as the "lagged outcome" to test for unconfoundedness. Fit a linear model with all the main effects, the treatment variable (`debit_card1998`) and interactions between treatment and all other covariates:
+$$
+Y_{i, \text{lag}} \sim \beta X_{i,\text{no lag}} + \delta Z_i + \gamma X_{i,\text{no lag}} *Z_i,
+$$
+where $X_{i,\text{no lag}}$ consists of all the covariates except `spending1995`. We want to test if $\delta=0$, which implies 
+$$
+\mathbb{E} (Y_{i, \text{lag}}(Z_i=1) - Y_{i, \text{lag}}(Z_i=0) \mid X_{i,\text{no lag}} = x) = 0
+$$
+for all configurations $x$ of covariates. 
+
+```{r check unconfound}
+debit_lag = debit %>% select(-spending1998)
+lag.ml = lm(spending1995 ~ . + debit_card1998 * (.), data=debit_lag)
+summary(lag.ml)$coefficients['debit_card19981 (Yes)',]
+```
+
+Given the summary output, we shouldn't reject the null that $\delta=0$, which means we can accept the unconfoundedness assumption.
+
+## Problem 2
+
+Now check for overlap and balance. 
+
+First check for balance by calculating the standard mean difference (i.e., the 2nd version of ASD with heurisic threshold at $0.1$) for each covariate, which yields the Love plot below.
+
+We can see that there is severe imbalance on `average_age`, `householder_age` and `family_size`, among quite a few unbalanced covariates overall.
+```{r directly check balance}
+data_lag <- svydesign(ids = ~ 1, data = debit_lag, weights = ~ 1)
+
+vars = names(debit_lag)[2:14]
+
+## Construct a table that checks balance
+tabOrig <- svyCreateTableOne(vars = vars, strata = 'debit_card1998',
+                                 data = data_lag, test = FALSE)
+## Show table with SMD
+## (no output due to space limit)
+#print(tabOrig, smd = TRUE)
+```
+
+```{r make Forrest plot of SMD, warning=FALSE, message=FALSE}
+SMD = data.frame(SMD = as.numeric(ExtractSmd(tabOrig)),
+                 Variable = vars)
+SMD = SMD %>% arrange(desc(SMD))
+## Order variable names by magnitude of SMD
+varNames <- as.character(SMD$Variable)[order(SMD$SMD)]
+## Order factor levels in the same order
+SMD$Variable <- factor(SMD$Variable, levels = varNames)
+
+ggplot(data = SMD,
+       mapping = aes(x = Variable, y = SMD)) +
+    #geom_line() +
+    geom_hline(yintercept = 0.1, color = "black", size = 0.3) +
+    geom_point(color='blue') +
+    coord_flip() +
+    theme_bw() + theme(legend.key = element_blank())
+```
+
+And then estimate the propensity score and plot its histograms for two groups.
+
+From the histogram below, we can see that **there is some overlap between treated and control**, but there are some units with very low propensity scores (indicating not-great balance, which consolidates what we've found through SMD calulation).
+
+```{r PS}
+# use the data that doesn't contain outcome
+# this PS model is chosen by trying out main effects and interactions
+# until reasonably good balance is achieved
+ps.model = glm(debit_card1998 ~ cash_inventory + interest_rate +
+                 wealth + income + spending1995 + num_of_banks +
+                 num_of_inhabitants + family_size + num_of_earners +
+                 average_age + geograph_area + householder_age + 
+                 householder_education + 
+                 householder_age * householder_education, 
+               data=debit_lag, family=binomial('logit'))
+PS = ps.model$fitted.values
+```
+
+```{r check PS model, eval=FALSE, echo=FALSE}
+debit_lag$ps = PS
+
+debit_lag = debit_lag %>% 
+  mutate(ipw = case_when(debit_card1998 == "1 (Yes)" ~ 1/ps,
+                         debit_card1998 == "0 (No)" ~ 1/(1-ps)))
+
+data_lagIPW <- svydesign(ids = ~ 1, data = debit_lag, weights = ~ ipw)
+vars = names(debit_lag)[2:14]
+
+## Construct a table that checks balance
+tabIPW <- svyCreateTableOne(vars = vars, strata = 'debit_card1998',
+                                 data = data_lagIPW, test = FALSE)
+## Show table with SMD
+print(tabIPW, smd = TRUE)
+```
+
+```{r plot PS scores}
+debit_lag$ps = PS
+ggplot(data=debit_lag, aes(x=ps,fill=debit_card1998)) +
+  geom_histogram(bins = 20, position='dodge') + 
+  theme_bw()
+```
+
+
+## Problem 3
+Estimate the ATT.
+
+### (a) Outcome regression
+Fit a linear model with main effects of all the covariates, the treatment, and all possible interaction terms between treatment and covariates. Then the estimator for ATT would be
+$$
+\hat{\tau} = \frac{1}{N_1} \sum_{i=1}^N \mathbf{1}(Z_i=1) (Y_i - \hat{m}_0(X_i)).
+$$
+I'll use bootstrap to obtain the standard error of this estimate.
+
+```{r outcome reg}
+get_or_estimate <- function(dat){
+  or = lm(spending1998 ~ . + debit_card1998 * (.), data=dat)
+   
+  dat_trt = dat %>% filter(debit_card1998 == "1 (Yes)")
+  spending_trt = dat_trt$spending1998
+  
+  #dat_trt = dat_trt %>% dplyr::select(-spending1998)
+  dat_trt = dat_trt[,-1]
+  dat_trt$debit_card1998 = "0 (No)"
+  
+  spending_trt0 = predict(or, dat_trt)
+  
+  mean(spending_trt - spending_trt0)
+}
+
+get_or_sd <- function(dat, B=2000, seed=42){
+  set.seed(seed)
+  N = nrow(dat)
+  estimates = sapply(1:B, function(i) {
+    # bootstrap
+    d.samp = dat[sample(1:N, replace = T),]
+    
+    # re-adjust the factors
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x)) factor(x) else x)
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x) & length(levels(x))<2) as.numeric(x) else x)
+    
+    get_or_estimate(d.samp)
+  })
+  
+  sd(estimates)
+}
+```
+
+```{r OR est and sd, cache=TRUE, message=FALSE, warning=FALSE}
+Est = get_or_estimate(debit)
+SD = get_or_sd(debit)
+cat('Estimate:', Est,'\nStandard error:', SD,'\n')
+```
+
+### (b) Weighting estimator
+Here I'm going to be lazy and use the `PSweight` package. 
+
+### (c) Double robust estimator
+
+### (d) Bayesian outcome regression
+
+
+
