@@ -132,7 +132,7 @@ Estimate the ATT.
 ### (a) Outcome regression
 Fit a linear model with main effects of all the covariates, the treatment, and all possible interaction terms between treatment and covariates. Then the estimator for ATT would be
 $$
-\hat{\tau} = \frac{1}{N_1} \sum_{i=1}^N \mathbf{1}(Z_i=1) (Y_i - \hat{m}_0(X_i)).
+\hat\tau = \frac{1}{N_1} \sum_{i=1}^N \mathbf{1}(Z_i=1) (Y_i - \hat{m}_0(X_i)).
 $$
 I'll use bootstrap to obtain the standard error of this estimate.
 
@@ -177,11 +177,177 @@ cat('Estimate:', Est,'\nStandard error:', SD,'\n')
 ```
 
 ### (b) Weighting estimator
-Here I'm going to be lazy and use the `PSweight` package. 
+Here I'm going to be lazy and use the `PSweight` package. Since the estimand is ATT, the weights on treated units and control units should be
+$$
+\begin{align}
+w_1(x_i) &\propto 1, \\
+w_0(x_i) &\propto \frac{\hat{e}(x_i)}{1-\hat{e}(x_i)}.
+\end{align}
+$$
+
+Here $\hat{e}(x_i)$ will be estimated using the PS model that I have chosen earlier on. The standard error is estimated via bootstrap (with 1000 replicates).
+
+```{r weighting, warning=FALSE, message=FALSE, cache=TRUE}
+ps.formula = debit_card1998 ~ cash_inventory + interest_rate +
+                 wealth + income + spending1995 + num_of_banks +
+                 num_of_inhabitants + family_size + num_of_earners +
+                 average_age + geograph_area + householder_age + 
+                 householder_education + 
+                 householder_age * householder_education
+PS.fit = PSweight(ps.formula = ps.formula,
+                  zname = "debit_card1998",
+                  yname = "spending1998",
+                  weight = "treated",
+                  data = debit,
+                  bootstrap = TRUE,
+                  R = 1000)
+```
+
+Then check out the estimate, standard error, as well as 95% confidence interval. 
+```{r weighting summary}
+summary(PS.fit)
+```
+
 
 ### (c) Double robust estimator
 
 ### (d) Bayesian outcome regression
 
+Fit a Bayesian linear model to regress outcomes on covariates in the treated group and control group respectively. Here I'll use the `rstanarm` package to do Bayesian linear regression; as the default setting of this package, a flat prior ($Unif(0,1)$) on $R^2$ is adopted for the linear model. 
 
+```{r, message=FALSE, warning=FALSE}
+library(rstan)
+library(rstanarm)
+```
 
+Split the dataset into the treated arm and control arm, and then fit a Bayesian LM model on each subset. The fitted models can then be used to impute $Y_i(0)$ as well as sample $Y_i(1)$ for each treated unit; the posterior parameter draws can also be directly used to compute estimates for the ATT estimand $\tau$ (more details are stated later on).
+
+```{r}
+Yes = debit %>% filter(debit_card1998 == "1 (Yes)") %>%
+  select(-debit_card1998)
+
+No = debit %>% filter(debit_card1998 == "0 (No)") %>%
+  select(-debit_card1998)
+```
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, results='hide'}
+yes.fit = stan_lm(spending1998 ~ ., data=Yes, prior = R2(0.6), seed=42)
+Y1 = Yes$spending1998
+Y1_fit = posterior_predict(yes.fit)
+sigma1 = as.matrix(yes.fit)[,'sigma']
+```
+
+```{r, include=FALSE}
+#prior_summary(yes.fit)
+```
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, results='hide'}
+no.fit = stan_lm(spending1998 ~ ., data=No, prior = R2(0.6), seed=42)
+Y0 = No$spending1998
+#Y0_fit = posterior_predict(no.fit)
+Y0_predict = posterior_predict(no.fit, newdata = Yes)
+sigma0 = as.matrix(no.fit)[,'sigma']
+```
+
+#### (i) Only draw $Y_i(0)$ from posterior for each treated unit $i$
+
+At the same time, also vary $\rho$ from 0 to 1 (by an interval of 0.1). It seems that the result isn't very sensitive to the choice of $\rho$.
+
+```{r}
+# for treated units, draw Y(0)'s and get the mean
+get_Y0 <- function(rho=0.5){
+  nsamp = length(sigma0)
+  N1 = nrow(Yes)
+  #samps = numeric(n)
+  mu = Y0_predict + rho * sigma0/sigma1 * (Y1 - Y1_fit)
+  sigma = sigma0 * sqrt(1-rho^2)
+  Y0_means = sapply(1:nsamp, function(i){
+    mean(rnorm(N1, mu[i,], sigma[i]))
+  })
+  Y0_means
+}
+
+# method (i)
+for(rho in seq(0.0,1.0,by=0.1)){
+  Y0_means = get_Y0(rho)
+ATT1 = mean(Y1) - Y0_means
+cat('For rho =', round(rho,1), 'Estimate:', mean(ATT1), 
+    '\n\t95% CI: [', paste0(round(quantile(ATT1, c(.025,.975)),4), 
+                            collapse = ", "), ']\n')
+}
+```
+
+#### (ii) Draw both $Y_i(0)$ and $Y_i(1)$ from posterior for each treated unit $i$
+
+Same as before, vary the value of $\rho$ from 0 to 1. Still, the result isn't much affected by the choice of $\rho$. 
+
+```{r}
+# for treated units, draw Y(1) as well
+Y1_means = apply(Y1_fit, 1, mean)
+
+# method (ii)
+for(rho in seq(0.0,1.0,by=0.1)){
+  Y0_means = get_Y0(rho)
+  ATT2 = Y1_means - Y0_means
+  cat('For rho =', round(rho,1), 'Estimate:', mean(ATT2), 
+      '\n\t95% CI: [', paste0(round(quantile(ATT2, c(.025,.975)),4), collapse = ", "), ']\n')
+}
+```
+
+#### (iii) Express $\tau$ in terms of model parameters $\theta$ directly
+
+Given that
+$$
+\begin{pmatrix}
+Y_i(1)\\
+Y_i(0)
+\end{pmatrix}
+\sim \mathcal{N} \left(
+\begin{pmatrix}
+\beta_1^T X_i\\
+\beta_0^T X_i
+\end{pmatrix},
+\begin{pmatrix}
+\sigma^2_1 & \rho \sigma_1\sigma_0\\
+\rho \sigma_1\sigma_0 & \sigma^2_0
+\end{pmatrix}
+\right),
+$$
+
+we have $\delta_i = Y_i(1) - Y_0(1)$ follows
+$$
+\delta_i \sim \mathcal{N}(\beta_1^T X_i - \beta_0^T X_i, \sigma^2_1+\sigma^2_0-2\rho \sigma_0 \sigma_1).
+$$
+
+Then our estimand is
+$$
+\tau = \frac{1}{N} \sum_{i: Z_i=1} \delta_i.
+$$
+
+Now draw posterior predictive samples of $\tau$ by drawing samples of the parameters from their posterior. Again, vary $\rho$ from 0 to 1; the point estimate isn't affected by $\rho$ but the standard error is (not considerably though).
+```{r}
+get_delta_mean <- function(rho=0.5){
+  nsamp = length(sigma0)
+  N1 = nrow(Yes)
+  Diffs = Y1_fit - Y0_predict
+  diff_sigma = sqrt(sigma0^2 + sigma1^2 - 2*rho*sigma1*sigma0)
+  delta_means = sapply(1:nsamp, function(i){
+    mean(rnorm(N1, Diffs[i,], diff_sigma[i]))
+  })
+  delta_means
+}
+
+# method (iii)
+for(rho in seq(0.0,1.0,by=0.1)){
+  delta_means = get_delta_mean(rho)
+  cat('For rho =', round(rho,1), 'Estimate:', mean(delta_means), 
+      '\n\t95% CI: [', paste0(round(quantile(delta_means, 
+                                             c(.025,.975)),4), 
+                              collapse = ", "), ']\n')
+}
+```
+
+#### Comparing the 3 methods
+**(i)** is estimating the **sample** ATT, while **(ii)** and **(iii)** are closer to estimating the **population** ATT. However here we are doing these through a hybrid approach by conditioning on the sample distribution of covariates $X$ instead of modeling the distribution of $X$ within the treated group.
+
+Also, it is notable that the latter 2 methods yield larger variances (wider credible intervals), since in **(i)** uncertainty only comes from imputing $Y_i(0)$'s, but in **(ii)** and **(iii)** uncertainty comes from "imputing" both potential outcomes.

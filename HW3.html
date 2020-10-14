@@ -257,8 +257,8 @@ ggplot(data=debit_lag, aes(x=ps,fill=debit_card1998)) +
 <div id="a-outcome-regression" class="section level3">
 <h3>(a) Outcome regression</h3>
 <p>Fit a linear model with main effects of all the covariates, the treatment, and all possible interaction terms between treatment and covariates. Then the estimator for ATT would be <span class="math display">\[
-\hat{\tau}^{} = \frac{1}{N_1} \sum_{i=1}^N \mathbf{1}(Z_i=1) (Y_i - \hat{m}_0(X_i)).
-\]</span> Then I’ll use bootstrap to obtain the standard error of this estimate.</p>
+\hat\tau = \frac{1}{N_1} \sum_{i=1}^N \mathbf{1}(Z_i=1) (Y_i - \hat{m}_0(X_i)).
+\]</span> I’ll use bootstrap to obtain the standard error of this estimate.</p>
 <pre class="r"><code>get_or_estimate &lt;- function(dat){
   or = lm(spending1998 ~ . + debit_card1998 * (.), data=dat)
    
@@ -295,6 +295,189 @@ SD = get_or_sd(debit)
 cat('Estimate:', Est,'\nStandard error:', SD,'\n')</code></pre>
 <pre><code>## Estimate: 189.9409 
 ## Standard error: 69.53933</code></pre>
+</div>
+<div id="b-weighting-estimator" class="section level3">
+<h3>(b) Weighting estimator</h3>
+<p>Here I’m going to be lazy and use the <code>PSweight</code> package.</p>
+</div>
+<div id="c-double-robust-estimator" class="section level3">
+<h3>(c) Double robust estimator</h3>
+</div>
+<div id="d-bayesian-outcome-regression" class="section level3">
+<h3>(d) Bayesian outcome regression</h3>
+<p>Fit a Bayesian linear model to regress outcomes on covariates in the treated group and control group respectively. Here I’ll use the <code>rstanarm</code> package to do Bayesian linear regression; as the default setting of this package, a flat prior (<span class="math inline">\(Unif(0,1)\)</span>) on <span class="math inline">\(R^2\)</span> is adopted for the linear model.</p>
+<pre class="r"><code>library(rstan)
+library(rstanarm)</code></pre>
+<p>Split the dataset into the treated arm and control arm, and then fit a Bayesian LM model on each subset. The fitted models can then be used to impute <span class="math inline">\(Y_i(0)\)</span> as well as sample <span class="math inline">\(Y_i(1)\)</span> for each treated unit; the posterior parameter draws can also be directly used to calculate the estimand <span class="math inline">\(\tau\)</span> (more details are stated later on).</p>
+<pre class="r"><code>Yes = debit %&gt;% filter(debit_card1998 == &quot;1 (Yes)&quot;) %&gt;%
+  select(-debit_card1998)
+
+No = debit %&gt;% filter(debit_card1998 == &quot;0 (No)&quot;) %&gt;%
+  select(-debit_card1998)</code></pre>
+<pre class="r"><code>yes.fit = stan_lm(spending1998 ~ ., data=Yes, prior = R2(0.6), seed=42)
+Y1 = Yes$spending1998
+Y1_fit = posterior_predict(yes.fit)
+sigma1 = as.matrix(yes.fit)[,'sigma']</code></pre>
+<pre class="r"><code>no.fit = stan_lm(spending1998 ~ ., data=No, prior = R2(0.6), seed=42)
+Y0 = No$spending1998
+#Y0_fit = posterior_predict(no.fit)
+Y0_predict = posterior_predict(no.fit, newdata = Yes)
+sigma0 = as.matrix(no.fit)[,'sigma']</code></pre>
+<div id="i-only-draw-y_i0-from-posterior-for-each-treated-unit-i" class="section level4">
+<h4>(i) Only draw <span class="math inline">\(Y_i(0)\)</span> from posterior for each treated unit <span class="math inline">\(i\)</span></h4>
+<p>At the same time, also vary <span class="math inline">\(\rho\)</span> from 0 to 1 (by an interval of 0.1). It seems that the result isn’t very sensitive to the choice of <span class="math inline">\(\rho\)</span>.</p>
+<pre class="r"><code># for treated units, draw Y(0)'s and get the mean
+get_Y0 &lt;- function(rho=0.5){
+  nsamp = length(sigma0)
+  N1 = nrow(Yes)
+  #samps = numeric(n)
+  mu = Y0_predict + rho * sigma0/sigma1 * (Y1 - Y1_fit)
+  sigma = sigma0 * sqrt(1-rho^2)
+  Y0_means = sapply(1:nsamp, function(i){
+    mean(rnorm(N1, mu[i,], sigma[i]))
+  })
+  Y0_means
+}
+
+# method (i)
+for(rho in seq(0.0,1.0,by=0.1)){
+  Y0_means = get_Y0(rho)
+ATT1 = mean(Y1) - Y0_means
+cat('For rho =', round(rho,1), 'Estimate:', mean(ATT1), 
+    '\n\t95% CI: [', paste0(round(quantile(ATT1, c(.025,.975)),4), 
+                            collapse = &quot;, &quot;), ']\n')
+}</code></pre>
+<pre><code>## For rho = 0 Estimate: 202.6542 
+##  95% CI: [ 64.7962, 338.0723 ]
+## For rho = 0.1 Estimate: 201.9462 
+##  95% CI: [ 62.0598, 340.3793 ]
+## For rho = 0.2 Estimate: 203.0293 
+##  95% CI: [ 60.3785, 343.26 ]
+## For rho = 0.3 Estimate: 202.0088 
+##  95% CI: [ 57.2011, 341.6054 ]
+## For rho = 0.4 Estimate: 203.7023 
+##  95% CI: [ 55.7067, 345.4342 ]
+## For rho = 0.5 Estimate: 203.4421 
+##  95% CI: [ 55.6691, 348.115 ]
+## For rho = 0.6 Estimate: 201.8006 
+##  95% CI: [ 49.6731, 348.9772 ]
+## For rho = 0.7 Estimate: 201.7792 
+##  95% CI: [ 49.5648, 351.583 ]
+## For rho = 0.8 Estimate: 201.7798 
+##  95% CI: [ 47.1427, 351.4332 ]
+## For rho = 0.9 Estimate: 202.1663 
+##  95% CI: [ 40.9839, 354.5645 ]
+## For rho = 1 Estimate: 201.9532 
+##  95% CI: [ 38.1283, 358.5114 ]</code></pre>
+</div>
+<div id="ii-draw-both-y_i0-and-y_i1-from-posterior-for-each-treated-unit-i" class="section level4">
+<h4>(ii) Draw both <span class="math inline">\(Y_i(0)\)</span> and <span class="math inline">\(Y_i(1)\)</span> from posterior for each treated unit <span class="math inline">\(i\)</span></h4>
+<p>Same as before, vary the value of <span class="math inline">\(\rho\)</span> from 0 to 1. Still, the result isn’t much affected by the choice of <span class="math inline">\(\rho\)</span>.</p>
+<pre class="r"><code># for treated units, draw Y(1) as well
+Y1_means = apply(Y1_fit, 1, mean)
+
+# method (ii)
+for(rho in seq(0.0,1.0,by=0.1)){
+  Y0_means = get_Y0(rho)
+  ATT2 = Y1_means - Y0_means
+  cat('For rho =', round(rho,1), 'Estimate:', mean(ATT2), 
+      '\n\t95% CI: [', paste0(round(quantile(ATT2, c(.025,.975)),4), collapse = &quot;, &quot;), ']\n')
+}</code></pre>
+<pre><code>## For rho = 0 Estimate: 202.0391 
+##  95% CI: [ 2.3292, 398.4551 ]
+## For rho = 0.1 Estimate: 201.9641 
+##  95% CI: [ -7.3388, 402.8711 ]
+## For rho = 0.2 Estimate: 200.7293 
+##  95% CI: [ -18.2979, 417.9051 ]
+## For rho = 0.3 Estimate: 200.6179 
+##  95% CI: [ -25.4779, 420.4712 ]
+## For rho = 0.4 Estimate: 202.1738 
+##  95% CI: [ -33.4943, 431.0813 ]
+## For rho = 0.5 Estimate: 202.2884 
+##  95% CI: [ -38.9509, 442.8676 ]
+## For rho = 0.6 Estimate: 202.9378 
+##  95% CI: [ -41.7868, 437.5171 ]
+## For rho = 0.7 Estimate: 201.9308 
+##  95% CI: [ -55.2322, 451.6608 ]
+## For rho = 0.8 Estimate: 201.8705 
+##  95% CI: [ -59.2852, 461.3302 ]
+## For rho = 0.9 Estimate: 202.0747 
+##  95% CI: [ -69.0729, 471.4465 ]
+## For rho = 1 Estimate: 201.6252 
+##  95% CI: [ -78.9379, 477.5567 ]</code></pre>
+</div>
+<div id="iii-express-tau-in-terms-of-model-parameters-theta-directly" class="section level4">
+<h4>(iii) Express <span class="math inline">\(\tau\)</span> in terms of model parameters <span class="math inline">\(\theta\)</span> directly</h4>
+<p>Given that <span class="math display">\[
+\begin{pmatrix}
+Y_i(1)\\
+Y_i(0)
+\end{pmatrix}
+\sim \mathcal{N} \left(
+\begin{pmatrix}
+\beta_1^T X_i\\
+\beta_0^T X_i
+\end{pmatrix},
+\begin{pmatrix}
+\sigma^2_1 &amp; \rho \sigma_1\sigma_0\\
+\rho \sigma_1\sigma_0 &amp; \sigma^2_0
+\end{pmatrix}
+\right),
+\]</span></p>
+<p>we have <span class="math inline">\(\delta_i = Y_i(1) - Y_0(1)\)</span> follows <span class="math display">\[
+\delta_i \sim \mathcal{N}(\beta_1^T X_i - \beta_0^T X_i, \sigma^2_1+\sigma^2_0-2\rho \sigma_0 \sigma_1).
+\]</span></p>
+<p>Then our estimand is <span class="math display">\[
+\tau = \frac{1}{N} \sum_{i: Z_i=1} \delta_i.
+\]</span></p>
+<p>Now draw posterior predictive samples of <span class="math inline">\(\tau\)</span> by drawing samples of the parameters from their posterior. Again, vary <span class="math inline">\(\rho\)</span> from 0 to 1; the point estimate isn’t affected by <span class="math inline">\(\rho\)</span> but the standard error is (not considerably though).</p>
+<pre class="r"><code>get_delta_mean &lt;- function(rho=0.5){
+  nsamp = length(sigma0)
+  N1 = nrow(Yes)
+  Diffs = Y1_fit - Y0_predict
+  diff_sigma = sqrt(sigma0^2 + sigma1^2 - 2*rho*sigma1*sigma0)
+  delta_means = sapply(1:nsamp, function(i){
+    mean(rnorm(N1, Diffs[i,], diff_sigma[i]))
+  })
+  delta_means
+}
+
+# method (iii)
+for(rho in seq(0.0,1.0,by=0.1)){
+  delta_means = get_delta_mean(rho)
+  cat('For rho =', round(rho,1), 'Estimate:', mean(delta_means), 
+      '\n\t95% CI: [', paste0(round(quantile(delta_means, 
+                                             c(.025,.975)),4), 
+                              collapse = &quot;, &quot;), ']\n')
+}</code></pre>
+<pre><code>## For rho = 0 Estimate: 200.9174 
+##  95% CI: [ -22.3165, 424.9597 ]
+## For rho = 0.1 Estimate: 201.6844 
+##  95% CI: [ -13.8159, 423.1045 ]
+## For rho = 0.2 Estimate: 201.8445 
+##  95% CI: [ -15.6838, 407.604 ]
+## For rho = 0.3 Estimate: 202.6455 
+##  95% CI: [ -7.8552, 409.5018 ]
+## For rho = 0.4 Estimate: 201.8717 
+##  95% CI: [ -8.4024, 401.7896 ]
+## For rho = 0.5 Estimate: 201.3991 
+##  95% CI: [ -3.9826, 400.2233 ]
+## For rho = 0.6 Estimate: 201.6024 
+##  95% CI: [ 2.9535, 393.089 ]
+## For rho = 0.7 Estimate: 201.0063 
+##  95% CI: [ 6.1769, 391.8213 ]
+## For rho = 0.8 Estimate: 201.6851 
+##  95% CI: [ 9.241, 388.2578 ]
+## For rho = 0.9 Estimate: 201.571 
+##  95% CI: [ 14.8501, 382.1989 ]
+## For rho = 1 Estimate: 202.0336 
+##  95% CI: [ 23.2115, 376.539 ]</code></pre>
+</div>
+<div id="comparing-the-3-methods" class="section level4">
+<h4>Comparing the 3 methods</h4>
+<p><strong>(i)</strong> is estimating the <strong>sample</strong> ATT, while <strong>(ii)</strong> and <strong>(iii)</strong> are closer to estimating the <strong>population</strong> ATT. However here we are doing these through a hybrid approach by conditioning on the sample distribution of covariates <span class="math inline">\(X\)</span> instead of modeling the distribution of <span class="math inline">\(X\)</span> within the treated group.</p>
+<p>Also, it is notable that the latter 2 methods yield larger variances (wider credible intervals), since in <strong>(i)</strong> uncertainty only comes from imputing <span class="math inline">\(Y_i(0)\)</span>’s, but in <strong>(ii)</strong> and <strong>(iii)</strong> uncertainty comes from “imputing” both potential outcomes.</p>
+</div>
 </div>
 </div>
 
