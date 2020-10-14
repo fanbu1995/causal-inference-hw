@@ -298,17 +298,57 @@ cat('Estimate:', Est,'\nStandard error:', SD,'\n')</code></pre>
 </div>
 <div id="b-weighting-estimator" class="section level3">
 <h3>(b) Weighting estimator</h3>
-<p>Here I’m going to be lazy and use the <code>PSweight</code> package.</p>
+<p>Here I’m going to be lazy and use the <code>PSweight</code> package. Since the estimand is ATT, the weights on treated units and control units should be <span class="math display">\[
+\begin{align}
+w_1(x_i) &amp;\propto 1, \\
+w_0(x_i) &amp;\propto \frac{\hat{e}(x_i)}{1-\hat{e}(x_i)}.
+\end{align}
+\]</span></p>
+<p>Here <span class="math inline">\(\hat{e}(x_i)\)</span> will be estimated using the PS model that I have chosen earlier on. The standard error is estimated via bootstrap (with 1000 replicates).</p>
+<pre class="r"><code>ps.formula = debit_card1998 ~ cash_inventory + interest_rate +
+                 wealth + income + spending1995 + num_of_banks +
+                 num_of_inhabitants + family_size + num_of_earners +
+                 average_age + geograph_area + householder_age + 
+                 householder_education + 
+                 householder_age * householder_education
+PS.fit = PSweight(ps.formula = ps.formula,
+                  zname = &quot;debit_card1998&quot;,
+                  yname = &quot;spending1998&quot;,
+                  weight = &quot;treated&quot;,
+                  data = debit,
+                  bootstrap = TRUE,
+                  R = 1000)</code></pre>
+<p>Then check out the estimate, standard error, as well as 95% confidence interval.</p>
+<pre class="r"><code>summary(PS.fit)</code></pre>
+<pre><code>## Original group value:  0 (No), 1 (Yes) 
+## Treatment group value:  1 (Yes) 
+## 
+## contrast 
+##            0 (No) 1 (Yes)
+## Contrast 1     -1       1
+## 
+##            Estimate Std.Error Lower.CL Upper.CL p.value
+## Contrast 1 189.2617  98.29678 6.925294 391.1966   0.054</code></pre>
 </div>
 <div id="c-double-robust-estimator" class="section level3">
 <h3>(c) Double robust estimator</h3>
+<p>In the case of estimating ATT, a “doubly robust estimator” can be thought of as augmenting the estimator in <strong>(b)</strong> with outcome regression.</p>
+<p>Here I’ll use the augmented estimator in Mao, H., Li, L., Greene, T. (2019): <span class="math display">\[
+\begin{align}
+\hat\tau_{\text{aug}} =&amp; \frac{\sum_{i=1}^n\hat{h}(x_i) (\hat{m}_1(x_i) -\hat{m}_0(x_i) )}{\sum_{i=1}^n\hat{h}(x_i)}\\
+&amp;+ \frac{\sum_{i=1}^n\hat{w}_1(x_i) Z_i (Y_i -\hat{m}_1(x_i) )}{\sum_{i=1}^n\hat{w}_1(x_i)Z_i} - \frac{\sum_{i=1}^n\hat{w}_0(x_i) (1-Z_i) (Y_i -\hat{m}_0(x_i) )}{\sum_{i=1}^n\hat{w}_0(x_i)(1-Z_i)}.
+\end{align}
+\]</span></p>
+<p>The outcome regression model and PS model are the same as those in <strong>(a)</strong> and <strong>(b)</strong>. The standar error is estimated via bootstrap.</p>
+<!-- Again, use the `PSweight` package and estimate the standard error via bootstrap. -->
+<!-- Here the outcome regression model is the same as that in **(a)**. -->
 </div>
 <div id="d-bayesian-outcome-regression" class="section level3">
 <h3>(d) Bayesian outcome regression</h3>
 <p>Fit a Bayesian linear model to regress outcomes on covariates in the treated group and control group respectively. Here I’ll use the <code>rstanarm</code> package to do Bayesian linear regression; as the default setting of this package, a flat prior (<span class="math inline">\(Unif(0,1)\)</span>) on <span class="math inline">\(R^2\)</span> is adopted for the linear model.</p>
 <pre class="r"><code>library(rstan)
 library(rstanarm)</code></pre>
-<p>Split the dataset into the treated arm and control arm, and then fit a Bayesian LM model on each subset. The fitted models can then be used to impute <span class="math inline">\(Y_i(0)\)</span> as well as sample <span class="math inline">\(Y_i(1)\)</span> for each treated unit; the posterior parameter draws can also be directly used to calculate the estimand <span class="math inline">\(\tau\)</span> (more details are stated later on).</p>
+<p>Split the dataset into the treated arm and control arm, and then fit a Bayesian LM model on each subset. The fitted models can then be used to impute <span class="math inline">\(Y_i(0)\)</span> as well as sample <span class="math inline">\(Y_i(1)\)</span> for each treated unit; the posterior parameter draws can also be directly used to compute estimates for the ATT estimand <span class="math inline">\(\tau\)</span> (more details are stated later on).</p>
 <pre class="r"><code>Yes = debit %&gt;% filter(debit_card1998 == &quot;1 (Yes)&quot;) %&gt;%
   select(-debit_card1998)
 
@@ -347,28 +387,28 @@ cat('For rho =', round(rho,1), 'Estimate:', mean(ATT1),
     '\n\t95% CI: [', paste0(round(quantile(ATT1, c(.025,.975)),4), 
                             collapse = &quot;, &quot;), ']\n')
 }</code></pre>
-<pre><code>## For rho = 0 Estimate: 202.6542 
-##  95% CI: [ 64.7962, 338.0723 ]
-## For rho = 0.1 Estimate: 201.9462 
-##  95% CI: [ 62.0598, 340.3793 ]
-## For rho = 0.2 Estimate: 203.0293 
-##  95% CI: [ 60.3785, 343.26 ]
-## For rho = 0.3 Estimate: 202.0088 
-##  95% CI: [ 57.2011, 341.6054 ]
-## For rho = 0.4 Estimate: 203.7023 
-##  95% CI: [ 55.7067, 345.4342 ]
-## For rho = 0.5 Estimate: 203.4421 
-##  95% CI: [ 55.6691, 348.115 ]
-## For rho = 0.6 Estimate: 201.8006 
-##  95% CI: [ 49.6731, 348.9772 ]
-## For rho = 0.7 Estimate: 201.7792 
-##  95% CI: [ 49.5648, 351.583 ]
-## For rho = 0.8 Estimate: 201.7798 
-##  95% CI: [ 47.1427, 351.4332 ]
-## For rho = 0.9 Estimate: 202.1663 
-##  95% CI: [ 40.9839, 354.5645 ]
-## For rho = 1 Estimate: 201.9532 
-##  95% CI: [ 38.1283, 358.5114 ]</code></pre>
+<pre><code>## For rho = 0 Estimate: 201.173 
+##  95% CI: [ 64.5923, 341.2284 ]
+## For rho = 0.1 Estimate: 202.1186 
+##  95% CI: [ 64.7927, 338.408 ]
+## For rho = 0.2 Estimate: 199.134 
+##  95% CI: [ 60.6377, 335.4593 ]
+## For rho = 0.3 Estimate: 200.9591 
+##  95% CI: [ 64.6828, 344.1249 ]
+## For rho = 0.4 Estimate: 200.6888 
+##  95% CI: [ 58.2918, 344.4529 ]
+## For rho = 0.5 Estimate: 199.9349 
+##  95% CI: [ 56.2411, 343.7977 ]
+## For rho = 0.6 Estimate: 201.33 
+##  95% CI: [ 56.3711, 345.7991 ]
+## For rho = 0.7 Estimate: 200.4102 
+##  95% CI: [ 51.248, 349.372 ]
+## For rho = 0.8 Estimate: 200.74 
+##  95% CI: [ 46.8721, 355.6618 ]
+## For rho = 0.9 Estimate: 200.3408 
+##  95% CI: [ 43.0779, 357.1242 ]
+## For rho = 1 Estimate: 200.537 
+##  95% CI: [ 36.8883, 363.5437 ]</code></pre>
 </div>
 <div id="ii-draw-both-y_i0-and-y_i1-from-posterior-for-each-treated-unit-i" class="section level4">
 <h4>(ii) Draw both <span class="math inline">\(Y_i(0)\)</span> and <span class="math inline">\(Y_i(1)\)</span> from posterior for each treated unit <span class="math inline">\(i\)</span></h4>
@@ -383,28 +423,28 @@ for(rho in seq(0.0,1.0,by=0.1)){
   cat('For rho =', round(rho,1), 'Estimate:', mean(ATT2), 
       '\n\t95% CI: [', paste0(round(quantile(ATT2, c(.025,.975)),4), collapse = &quot;, &quot;), ']\n')
 }</code></pre>
-<pre><code>## For rho = 0 Estimate: 202.0391 
-##  95% CI: [ 2.3292, 398.4551 ]
-## For rho = 0.1 Estimate: 201.9641 
-##  95% CI: [ -7.3388, 402.8711 ]
-## For rho = 0.2 Estimate: 200.7293 
-##  95% CI: [ -18.2979, 417.9051 ]
-## For rho = 0.3 Estimate: 200.6179 
-##  95% CI: [ -25.4779, 420.4712 ]
-## For rho = 0.4 Estimate: 202.1738 
-##  95% CI: [ -33.4943, 431.0813 ]
-## For rho = 0.5 Estimate: 202.2884 
-##  95% CI: [ -38.9509, 442.8676 ]
-## For rho = 0.6 Estimate: 202.9378 
-##  95% CI: [ -41.7868, 437.5171 ]
-## For rho = 0.7 Estimate: 201.9308 
-##  95% CI: [ -55.2322, 451.6608 ]
-## For rho = 0.8 Estimate: 201.8705 
-##  95% CI: [ -59.2852, 461.3302 ]
-## For rho = 0.9 Estimate: 202.0747 
-##  95% CI: [ -69.0729, 471.4465 ]
-## For rho = 1 Estimate: 201.6252 
-##  95% CI: [ -78.9379, 477.5567 ]</code></pre>
+<pre><code>## For rho = 0 Estimate: 200.4433 
+##  95% CI: [ 1.9285, 395.2798 ]
+## For rho = 0.1 Estimate: 199.9323 
+##  95% CI: [ -5.6572, 408.692 ]
+## For rho = 0.2 Estimate: 201.2748 
+##  95% CI: [ -13.9315, 410.0267 ]
+## For rho = 0.3 Estimate: 200.7998 
+##  95% CI: [ -20.8685, 417.0382 ]
+## For rho = 0.4 Estimate: 201.019 
+##  95% CI: [ -27.2832, 431.5182 ]
+## For rho = 0.5 Estimate: 199.6514 
+##  95% CI: [ -39.6358, 442.5205 ]
+## For rho = 0.6 Estimate: 199.7784 
+##  95% CI: [ -45.4995, 448.7475 ]
+## For rho = 0.7 Estimate: 199.7528 
+##  95% CI: [ -62.1656, 461.0076 ]
+## For rho = 0.8 Estimate: 200.071 
+##  95% CI: [ -60.3603, 461.9183 ]
+## For rho = 0.9 Estimate: 199.9216 
+##  95% CI: [ -71.7685, 473.3208 ]
+## For rho = 1 Estimate: 199.793 
+##  95% CI: [ -75.9485, 481.8093 ]</code></pre>
 </div>
 <div id="iii-express-tau-in-terms-of-model-parameters-theta-directly" class="section level4">
 <h4>(iii) Express <span class="math inline">\(\tau\)</span> in terms of model parameters <span class="math inline">\(\theta\)</span> directly</h4>
@@ -450,28 +490,28 @@ for(rho in seq(0.0,1.0,by=0.1)){
                                              c(.025,.975)),4), 
                               collapse = &quot;, &quot;), ']\n')
 }</code></pre>
-<pre><code>## For rho = 0 Estimate: 200.9174 
-##  95% CI: [ -22.3165, 424.9597 ]
-## For rho = 0.1 Estimate: 201.6844 
-##  95% CI: [ -13.8159, 423.1045 ]
-## For rho = 0.2 Estimate: 201.8445 
-##  95% CI: [ -15.6838, 407.604 ]
-## For rho = 0.3 Estimate: 202.6455 
-##  95% CI: [ -7.8552, 409.5018 ]
-## For rho = 0.4 Estimate: 201.8717 
-##  95% CI: [ -8.4024, 401.7896 ]
-## For rho = 0.5 Estimate: 201.3991 
-##  95% CI: [ -3.9826, 400.2233 ]
-## For rho = 0.6 Estimate: 201.6024 
-##  95% CI: [ 2.9535, 393.089 ]
-## For rho = 0.7 Estimate: 201.0063 
-##  95% CI: [ 6.1769, 391.8213 ]
-## For rho = 0.8 Estimate: 201.6851 
-##  95% CI: [ 9.241, 388.2578 ]
-## For rho = 0.9 Estimate: 201.571 
-##  95% CI: [ 14.8501, 382.1989 ]
-## For rho = 1 Estimate: 202.0336 
-##  95% CI: [ 23.2115, 376.539 ]</code></pre>
+<pre><code>## For rho = 0 Estimate: 199.4343 
+##  95% CI: [ -23.6728, 420.5165 ]
+## For rho = 0.1 Estimate: 201.7145 
+##  95% CI: [ -13.0975, 417.9326 ]
+## For rho = 0.2 Estimate: 201.1598 
+##  95% CI: [ -16.4127, 416.2707 ]
+## For rho = 0.3 Estimate: 200.4828 
+##  95% CI: [ -7.3964, 410.0428 ]
+## For rho = 0.4 Estimate: 200.6482 
+##  95% CI: [ -6.1399, 404.2038 ]
+## For rho = 0.5 Estimate: 200.0062 
+##  95% CI: [ -6.691, 400.7662 ]
+## For rho = 0.6 Estimate: 200.2996 
+##  95% CI: [ 6.558, 398.7409 ]
+## For rho = 0.7 Estimate: 199.4454 
+##  95% CI: [ 2.0733, 391.1688 ]
+## For rho = 0.8 Estimate: 200.6103 
+##  95% CI: [ 12.2607, 389.5276 ]
+## For rho = 0.9 Estimate: 200.958 
+##  95% CI: [ 16.2798, 387.0633 ]
+## For rho = 1 Estimate: 200.4059 
+##  95% CI: [ 16.2483, 380.9661 ]</code></pre>
 </div>
 <div id="comparing-the-3-methods" class="section level4">
 <h4>Comparing the 3 methods</h4>

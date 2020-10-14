@@ -2,7 +2,7 @@
 title: "STA640 Homework 3"
 author: "Fan Bu"
 date: "10/12/2020"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -85,7 +85,7 @@ ggplot(data = SMD,
 
 And then estimate the propensity score and plot its histograms for two groups.
 
-From the histogram below, we can see that **there is some overlap between treated and control**, but there are some units with very low propensity scores (indicating not-great balance, which consolidates what we've found through SMD calulation).
+From the histogram below, we can see that **there is some overlap between treated and control**, but there are some units with very low propensity scores (indicating not-great balance, which consolidates what we've found through SMD calculation).
 
 ```{r PS}
 # use the data that doesn't contain outcome
@@ -179,10 +179,10 @@ cat('Estimate:', Est,'\nStandard error:', SD,'\n')
 ### (b) Weighting estimator
 Here I'm going to be lazy and use the `PSweight` package. Since the estimand is ATT, the weights on treated units and control units should be
 $$
-\begin{align}
+\begin{aligned}
 w_1(x_i) &\propto 1, \\
 w_0(x_i) &\propto \frac{\hat{e}(x_i)}{1-\hat{e}(x_i)}.
-\end{align}
+\end{aligned}
 $$
 
 Here $\hat{e}(x_i)$ will be estimated using the PS model that I have chosen earlier on. The standard error is estimated via bootstrap (with 1000 replicates).
@@ -210,6 +210,124 @@ summary(PS.fit)
 
 
 ### (c) Double robust estimator
+In the case of estimating ATT, a "doubly robust estimator" can be thought of as augmenting the estimator in **(b)** with outcome regression.
+
+Here I'll use the augmented estimator in Mao, H., Li, L., Greene, T. (2019):
+$$
+\begin{aligned}
+\hat{\tau}_{\text{aug}} =& \frac{\sum_{i=1}^n\hat{h}(x_i) (\hat{m}_1(x_i) -\hat{m}_0(x_i) )}{\sum_{i=1}^n\hat{h}(x_i)}\\
+&+ \frac{\sum_{i=1}^n\hat{w}_1(x_i) Z_i (Y_i -\hat{m}_1(x_i) )}{\sum_{i=1}^n\hat{w}_1(x_i)Z_i} - \frac{\sum_{i=1}^n\hat{w}_0(x_i) (1-Z_i) (Y_i -\hat{m}_0(x_i) )}{\sum_{i=1}^n\hat{w}_0(x_i)(1-Z_i)},
+\end{aligned}
+$$
+
+where $\hat{h}(x_i) = \hat{e}(x_i)$ is the (estimated) tilting function for the target population corresponding to ATT.
+
+The outcome regression model and PS model are the same as those in **(a)** and **(b)**. The standard error is estimated via bootstrap.
+
+```{r DR estimator, cache=TRUE}
+get_DR_est <- function(dat){
+  N = nrow(dat)
+  # PS model
+  ps.model = glm(debit_card1998 ~ cash_inventory + interest_rate +
+                 wealth + income + spending1995 + num_of_banks +
+                 num_of_inhabitants + family_size + num_of_earners +
+                 average_age + geograph_area + householder_age + 
+                 householder_education + 
+                 householder_age * householder_education, 
+               data=debit_lag, family=binomial('logit'))
+  PS = ps.model$fitted.values
+  trt_weight = case_when(dat$debit_card1998 == "0 (No)" ~ PS/(1-PS),
+                         dat$debit_card1998 == "1 (Yes)" ~ 1)
+  # outcome model
+  or.model = lm(spending1998 ~ . + debit_card1998 * (.), data=dat)
+  POs = matrix(nrow=N, ncol=2)
+  new = dat
+  new$debit_card1998 = "0 (No)"
+  POs[,1] = predict(or.model, new)
+  new$debit_card1998 = "1 (Yes)"
+  POs[,2] = predict(or.model, new)
+  
+  # calculate tau.hat
+  control = which(dat$debit_card1998 == "0 (No)")
+  treated = which(dat$debit_card1998 == "1 (Yes)")
+  tau = sum(PS/sum(PS) * (POs[,2] - POs[,1])) +
+    sum(trt_weight[treated]/sum(trt_weight[treated]) * 
+    (dat$spending1998[treated] - POs[treated,2])) -
+    sum(trt_weight[control]/sum(trt_weight[control]) * 
+    (dat$spending1998[control] - POs[control,1]))
+  tau
+}
+
+get_DR_sd <- function(dat, B=2000, seed=42){
+  set.seed(seed)
+  N = nrow(dat)
+  estimates = sapply(1:B, function(i) {
+    # bootstrap
+    d.samp = dat[sample(1:N, replace = T),]
+    
+    # re-adjust the factors
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x)) factor(x) else x)
+    d.samp[] <- lapply(d.samp, function(x) if(is.factor(x) & length(levels(x))<2) as.numeric(x) else x)
+    
+    get_DR_est(d.samp)
+  })
+  
+  sd(estimates)
+}
+```
+
+```{r DR est and sd, cache=TRUE, message=FALSE, warning=FALSE}
+Est = get_DR_est(debit)
+SD = get_DR_sd(debit)
+cat('Estimate:', Est,'\nStandard error:', SD,'\n')
+```
+
+<!-- Again, use the `PSweight` package and estimate the standard error via bootstrap. -->
+
+<!-- Here the outcome regression model is the same as that in **(a)**. -->
+
+```{r, include=FALSE}
+or = lm(spending1998 ~ . + debit_card1998 * (.), data=debit)
+
+N = nrow(debit)
+POs = matrix(nrow=N, ncol=2)
+
+new = debit
+new$debit_card1998 = "0 (No)"
+POs[,1] = predict(or, new)
+
+new$debit_card1998 = "1 (Yes)"
+POs[,2] = predict(or, new)
+```
+
+
+```{r augmented, cache=TRUE, warning=FALSE, message=FALSE, include=FALSE}
+#out.formula = spending1998 ~ .
+# out.formula = spending1998 ~ cash_inventory + interest_rate +
+#                  wealth + income + spending1995 + num_of_banks +
+#                  num_of_inhabitants + family_size + num_of_earners +
+#                  average_age + geograph_area + householder_age + 
+#                  householder_education + debit_card1998 * (
+#                    cash_inventory + interest_rate +
+#                  wealth + income + spending1995 + num_of_banks +
+#                  num_of_inhabitants + family_size + num_of_earners +
+#                  average_age + geograph_area + householder_age + 
+#                  householder_educatio)
+DR.fit = PSweight(ps.formula = ps.formula,
+                  out.estimate = POs,
+                  zname = "debit_card1998",
+                  yname = "spending1998",
+                  weight = "treated",
+                  augmentation = TRUE,
+                  data = debit,
+                  bootstrap = TRUE,
+                  R = 1000)
+```
+
+```{r, include=FALSE}
+summary(DR.fit)
+```
+
 
 ### (d) Bayesian outcome regression
 
