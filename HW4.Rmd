@@ -85,10 +85,49 @@ The first 2 assumptions, i.e., **random assignment** and **monotonicity** are en
 Since we assume there is no defiers, we only need to estimate $\pi_c, \pi_n,\pi_a$ as follows:
 $$
 \begin{aligned}
-
+\hat\pi_a &= \frac{\sum_iW_i(1-Z_i)}{\sum_i(1-Z_i)};\\
+\hat\pi_n &= \frac{\sum_i(1-W_i)Z_i}{\sum_iZ_i}=1-\frac{\sum_iW_iZ_i}{\sum_iZ_i};\\
+\hat\pi_c &= 1- \hat\pi_a - \hat\pi_n = \frac{\sum_iW_iZ_i}{\sum_iZ_i} - \frac{\sum_iW_i(1-Z_i)}{\sum_i(1-Z_i)}.
 \end{aligned}
 $$
+Again, standard errors are estimated via bootstrap.
 
+```{r est group props, cache=TRUE}
+get_prop_est <- function(d){
+  est = numeric(3)
+  # pi_a:
+  est[1] = mean(d$W[d$Z==0])
+  # pi_n:
+  est[2] = 1 - mean(d$W[d$Z==1])
+  # pi_c:
+  est[3] = 1 - est[1] - est[2]
+  
+  est
+}
+
+
+# bootstrap
+set.seed(42)
+B = 1000
+N = nrow(dat)
+props.boot = sapply(1:B, function(i){
+  dat.boot = dat %>% slice(sample(1:N, N, replace = T))
+  get_prop_est(dat.boot)
+})
+```
+
+```{r present a result table}
+Est = get_prop_est(dat)
+SEs = apply(props.boot, 1, sd)
+
+res = data.frame(Group = c('always-taker','never-taker','complier'),
+                 Est.prop = Est,
+                 SE = SEs)
+knitr::kable(res, digits = 4)
+```
+
+
+## Problem 5
 
 ```{r pressure, echo=FALSE}
 plot(pressure)
