@@ -1,0 +1,97 @@
+---
+title: "STA640 Homework 4"
+author: "Fan Bu"
+date: "10/20/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+First creat a data frame object `dat` to represent the data.
+
+```{r create data}
+library(tidyverse)
+dat = data.frame(Z = c(rep(0,185+123+9+41), rep(1, 37+20+26+96)),
+                 W = c(rep(0,185+123), rep(1, 9+41), 
+                       rep(0,37+20), rep(1, 26+96)),
+                 Y = c(rep(0,185), rep(1,123), rep(0,9), rep(1,41),
+                       rep(0,37), rep(1,20), rep(0,26), rep(1,96)))
+```
+
+
+## Problem 1
+
+The ITT estimate is simply
+$$
+\frac{\sum_{i=1}^n Z_iY_i}{\sum_{i=1}^n Z_i} - \frac{\sum_{i=1}^n (1-Z_i)Y_i}{\sum_{i=1}^n (1-Z_i)},
+$$
+and I'll estimate the standard error via bootstrap.
+
+```{r ITT naive, cache=TRUE}
+# estimate
+ITTy = mean(dat$Y[dat$Z == 1]) - mean(dat$Y[dat$Z == 0])
+
+# SE via bootstrap
+set.seed(42)
+B = 1000
+N = nrow(dat)
+ITT.boot = sapply(1:B, function(i){
+  dat.boot = dat %>% slice(sample(1:N, N, replace = T))
+  mean(dat.boot$Y[dat.boot$Z == 1]) - mean(dat.boot$Y[dat.boot$Z == 0])
+})
+
+cat('ITT estimate:', ITTy, '\nStandard error:', sd(ITT.boot), '\n')
+```
+
+## Problem 2
+
+The 4 possible pre-assignment groups are
+
+- $W(0)=0, W(1)=0$, "never-takers": people who would not take physiotherapy no matter whether or not they receive the discount. 
+- $W(0)=0, W(1)=1$, "compliers"; people who would take physiotherapy if offered a discount, but wouldn't otherwise.
+- $W(0)=1, W(1)=0$, "defiers"; people who would take physiotherapy if **not** offered a discount, but wouldn't do so if offered a discount.
+- $W(0)=1, W(1)=1$, "always-takers"; people who would always take physiotherapy no matter whether or not they receive the discount. 
+
+## Problem 3
+
+1. Random assignment (latent ignorability):
+$$
+(Y_i(0),Y_i(1),W_i(0),W_i(1)) \perp Z_i.
+$$
+This is a plausible assumption in that (1) the treatment is randomized in this study, and (2) $S_i = (W_i(0),W_i(1))$ doesn't depend on $Z_i$ given the definition of compliance groups.
+
+2. Strong monotonicity (no defiers \& existence of compliers):
+$$
+W_i(1) \geq W_i(0); 0< Pr(W_i=0 \mid Z_i = 1) < 1 \quad \text{for all } i.
+$$
+The "no defiers" assumption may seem a bit strong, **but** in the context of this study (from the perspective of common sense), it's quite unlikely to have a person who does not take physiotherapy when offered a discount and yet takes it when a discount is not offered (aka. a defier), since we wouldn't expect a normal person to prefer a more expensive version of some service with the same quality. 
+
+Thus I would say this second assumption is plausible too.
+
+3. Exclusion Restriction for non-compliers.
+$$
+Y_i(0) = Y_i(1), \quad \text{for all }i \in S_i=n,a.
+$$
+This is plausible, as for never-takers and always-takers, their treatment assignment doesn't affect if they actually receive the treatment, and so the potential outcomes would be the same. 
+
+## Problem 4
+
+The first 2 assumptions, i.e., **random assignment** and **monotonicity** are enough to estimate the proportion of never-takers.
+
+Since we assume there is no defiers, we only need to estimate $\pi_c, \pi_n,\pi_a$ as follows:
+$$
+\begin{aligned}
+
+\end{aligned}
+$$
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
