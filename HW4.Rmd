@@ -72,6 +72,8 @@ The 4 possible pre-assignment groups are
 
 <!-- Thus I would say this second assumption is plausible too. -->
 
+0. Randomness (this is already implied by $Z_i$ being a randomizer)
+
 1. Existence of compliers ($Z$ has direct effect on received treatment)
 $$
 Pr(W_i=1 \mid Z_i = 1) > 0 \text{ and } Pr(W_i=0 \mid Z_i = 0) > 0  \quad \text{for all } i.
@@ -83,6 +85,8 @@ $$
 Y_i(0) = Y_i(1), \quad \text{for all }i \in S_i=n,a.
 $$
 This is plausible, as for never-takers and always-takers, their treatment assignment doesn't affect if they actually receive the treatment, and so the potential outcomes would be the same. 
+
+(Note: we don't actually need the strong monotonicity assumption for $Z_i$ to be an instrument technically, so it's not stated here; but strong monotonicity will be assumed in following parts to ensure identifiability.)
 
 ## Problem 4
 
@@ -190,13 +194,17 @@ cat('For true compliers,\nITT estimate:', get_ITTc_est(dat),
 
 The estimate in **(5)** is really about the clinical **efficacy** of the treatment, as it represents the effect of actually taking physiotherapy. This estimate provides more meaningful clinical implications. 
 
-However, the estimate in **(1)** is more about the **effectiveness** of the treatment for a general population, as it represents the effect of "promoting physiotherapy". This estimate provides more meaningful healthy policy implications. 
+However, the estimate in **(1)** is more about the **effectiveness** of the treatment for a general population, as it represents the effect of "promoting physiotherapy". This estimate provides more meaningful health policy implications. 
 
 ## Problem 7
 
-It's about "selective missing" (patient lost to follow-up depends on "compliance").
+Since whether or not a patient is still reachable at six months after surgery is self-selected (either by death or self-choices), and the probability of dropout may depend (a lot) on the principal strata (the compliance types), ignoring the compliance data and only estimating ITT on those still-reachable patients may lead to severe bias. 
 
-Since whether or not a patient is still reachable at six months after surgery is a post-treatment confounder - it is influenced by the treatment and also determines if we can access their outcome at all. Moreover, for those patients who are lost to follow-up, their ITT effects may not be well-defined (e.g., patients who die or have severe issues within six months cannot even have potential outcomes at six months). 
+In other words, the missing data mechanism at six months could be highly dependenet on the compliance types, and adjusting for compliance types can reduce bias when estimating ITT. 
+
+<!-- It's about "selective missing" (patient lost to follow-up depends on "compliance"). -->
+
+<!-- Since whether or not a patient is still reachable at six months after surgery is a post-treatment confounder - it is influenced by the treatment and also determines if we can access their outcome at all. Moreover, for those patients who are lost to follow-up, their ITT effects may not be well-defined (e.g., patients who die or have severe issues within six months cannot even have potential outcomes at six months).  -->
 
 ## Problem 8
 Let the parameters $\mathbf{\theta}$ consist of
