@@ -1,0 +1,319 @@
+---
+title: "Final Exam"
+author: "Fan Bu"
+date: "11/22/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+
+## Question 1
+### (a)
+Suppose we want to study the effect of sunlight exposure to bone health among middle-aged women.
+
+Outcome: whether or not a woman receives a diagnosis of osteoporosis by age 50.
+Treatment: natural sunlight exposure of at least 30 minutes per day. 
+Confounders: place of living, lifestyle, general health habits, etc.
+
+Conditions that would violate SUTVA: People who live in different regions/countries and/or go out at different times during the day or different seasons of the year may get very different levels of ultra-violet light exposure for 30 minutes of sunlight. Therefore, "30 minutes of sunlight exposure" can indicate a wide range of treatments that vary by the intensity of sunlight. 
+
+### (b)
+Suppose we want to study the effect of a campaign ad launched on social media (e.g., Facebook) on voter turnout. 
+
+Outcome: whether or not someone votes on the election day.
+Treatment: exposure to the campaign ad (e.g., the ad appears on the user's Facebook homepage as a "sponsored" post)
+Confounders: the user's frequency of using Facebook, personal characteristics, political inclinations, etc. 
+
+Conditions that would violate SUTVA: There may be a spillover effect between users who are friends. A person who doesn't get selected for the campaign may still get exposed to it if his friends re-post or "like" the campaign ad, or talk to him about it offline. 
+
+## Question 2
+(b) and (d) are correct.
+
+(a) is wrong because it indicates an individual treatment effect, but ATE measures the average effect of the study population instead.
+
+(c) is wrong because it mistakes ATE as a 2-group difference estimand (and doesn't assume randomization), whereas ATE is a counterfactual comparison.  
+
+## Question 3
+### (a)
+Unconfoundedness:
+$$
+(Y_i(0), Y_i(1)) \perp Z_i \mid X_i, \text{ for each unit }i.
+$$
+
+In other words, we need to verify that $Pr(Z \mid Y(0), Y(1), X) = Pr(Z \mid X)$.
+
+For $X=1$, we have
+$$
+\begin{aligned}
+&Pr(Z=1 \mid X=1) = (1/6 + 1/9 + 1/18)/(1/2) = 2/3;\\
+&Pr(Z=1 \mid Y(1)=1, Y(0)=1, X=1) = (1/6)/(1/6+1/12) = 2/3,\\
+&Pr(Z=1 \mid Y(1)=1, Y(0)=0, X=1) = (1/9)/(1/9+1/18) = 2/3,\\
+&Pr(Z=1 \mid Y(1)=0, Y(0)=0, X=1) = (1/18)/(1/18 + 1/36) = 2/3.
+\end{aligned}
+$$
+That is, $Pr(Z \mid Y(0), Y(1), X=1) = Pr(Z \mid X=1) = 2/3$.
+
+And for $X=0$, we have
+$$
+\begin{aligned}
+&Pr(Z=1 \mid X=0) = (1/36 + 1/18 + 1/12)/(1/2) = 1/3;\\
+&Pr(Z=1 \mid Y(1)=1, Y(0)=1, X=0) = (1/36)/(1/36+1/18) = 1/3,\\
+&Pr(Z=1 \mid Y(1)=1, Y(0)=0, X=0) = (1/18)/(1/18+1/9) = 1/3,\\
+&Pr(Z=1 \mid Y(1)=0, Y(0)=0, X=1) = (1/12)/(1/12 + 1/6) = 1/3.
+\end{aligned}
+$$
+That is, $Pr(Z \mid Y(0), Y(1), X=0) = Pr(Z \mid X=0) = 1/3$.
+
+Therefore, we indeed have $Pr(Z \mid Y(0), Y(1), X) = Pr(Z \mid X)$, and the unconfoundedness asumption holds.
+
+### (b)
+We only need to show that $Pr(Z \mid Y(0), Y(1)) \neq Pr(Z)$. 
+
+Since $Pr(Z=1) = 1/6 + 1/9 + 1/18 + 1/36 + 1/18 + 1/12 = 1/2$, but
+$$
+Pr(Z=1 \mid Y(1)=1, Y(0)=1) = \frac{1/6+1/36}{1/6+1/12+1/36+1/18} = 7/12,
+$$
+we can easily see that these two quantities are not equal, and thus marginal unconfoundedness doesn't hold.
+
+### (c)
+We need (1) unconfoundedness (this already holds), and (2) SUTVA.
+
+The joint distribution of $(Y,X,Z)$ is summarized in the table below.
+
+| $Y$ | $X$ | $Z$ | probability |
+|-----|-----|-----|---------|
+|  1  |  1  |  1  |   5/18  |
+|  0  |  1  |  1  |   1/18  |
+|  1  |  0  |  1  |   1/12  |
+|  0  |  0  |  1  |   1/12  |
+|  1  |  1  |  0  |   1/12  |
+|  0  |  1  |  0  |   1/12  |
+|  1  |  0  |  0  |   1/18  |
+|  0  |  0  |  0  |   5/18  |
+
+### (d)
+$$
+\mathbb{E}(Y \mid Z=1) = (5/18 + 1/12)/(1/2) = 13/18,
+$$
+while
+$$
+\mathbb{E}(Y(1)) = 1 - (1/18+1/36+1/12+1/6) = 2/3.
+$$
+So $\mathbb{E}(Y \mid Z=1) \neq \mathbb{E}(Y(1))$.
+
+Moreover,
+$$
+\mathbb{E}(Y \mid Z=0) = (1/12 + 1/18)/(1/2) = 5/18,
+$$
+while
+$$
+\mathbb{E}(Y(0)) = 1/18+1/36+1/12+1/6 = 1/3.
+$$
+So obviously $\mathbb{E}(Y \mid Z=0) \neq \mathbb{E}(Y(0))$.
+
+This is because the treated group and control group are not really comparable (the two sub-populations are not the same).
+
+###(e)
+Since
+$$
+\begin{aligned}
+&\mathbb{E}_X\{\mathbb{E}(Y \mid Z=1, X)\}\\
+=& \mathbb{E}(Y \mid Z=1, X=1)Pr(X=1) + \mathbb{E}(Y \mid Z=1, X=0)Pr(X=0)\\
+=& 5/6 \times 1/2 + 1/2 \times 1/2\\
+=& 2/3,
+\end{aligned}
+$$
+we do have $\mathbb{E}(Y(1)) = \mathbb{E}_X\{\mathbb{E}(Y \mid Z=1, X)\}$.
+
+Moreover, since
+$$
+\begin{aligned}
+&\mathbb{E}_X\{\mathbb{E}(Y \mid Z=0, X)\}\\
+=& \mathbb{E}(Y \mid Z=0, X=1)Pr(X=1) + \mathbb{E}(Y \mid Z=0, X=0)Pr(X=0)\\
+=& 1/2 \times 1/2 + 1/6 \times 1/2\\
+=& 1/3,
+\end{aligned}
+$$
+we also have $\mathbb{E}(Y(0)) = \mathbb{E}_X\{\mathbb{E}(Y \mid Z=0, X)\}$.
+
+For $z=1$,
+$$
+\begin{aligned}
+&\mathbb{E}[I(Z=1)Y/P(Z=1 \mid X)]\\
+=& \mathbb{E}[I(Z=1)Y/P(Z=1 \mid X) \mid X=1]Pr(X=1)\\ 
+ &+ \mathbb{E}[I(Z=1)Y/P(Z=1 \mid X) \mid X=0]Pr(X=0) \\
+=& \mathbb{E}[I(Z=1)Y\mid X=1]/(2/3) \times 1/2 + \mathbb{E}[I(Z=1)Y\mid X=0]/(1/3)\times 1/2 \\
+=&  \frac{5/9}{2/3} \times 1/2 + \frac{1/6}{1/3} \times 1/2\\
+=& \frac{15}{36} + \frac{1}{4}\\
+=& 2/3\\
+=& \mathbb{E}(Y(1)).
+\end{aligned}
+$$
+
+And for $z=0$
+$$
+\begin{aligned}
+&\mathbb{E}[I(Z=0)Y/P(Z=0 \mid X)]\\
+=& \mathbb{E}[I(Z=0)Y/P(Z=0 \mid X) \mid X=1]Pr(X=1)\\ 
+ &+ \mathbb{E}[I(Z=0)Y/P(Z=0 \mid X) \mid X=0]Pr(X=0) \\
+=& \mathbb{E}[I(Z=0)Y\mid X=1]/(1/3) \times 1/2 + \mathbb{E}[I(Z=0)Y\mid X=0]/(2/3)\times 1/2 \\
+=&  \frac{1/6}{1/3} \times 1/2 + \frac{1/9}{2/3} \times 1/2\\
+=& \frac{1}{4} + \frac{1}{12}\\
+=& 1/3\\
+=& \mathbb{E}(Y(0)).
+\end{aligned}
+$$
+
+### (f)
+Causal risk difference: $\mathbb{E}(Y(1)) - \mathbb{E}(Y(0)) = 1/3$.
+
+Causal risk ratio: $\frac{\mathbb{E}(Y(1))}{\mathbb{E}(Y(0))} = 2$.
+
+Causal odds ratio: $\frac{Pr(Y(1)=1)/(1-Pr(Y(1)=1))}{Pr(Y(0)=1)/(1-Pr(Y(0)=1))} = 4$.
+
+I don't think there is any real advantage for using one estimand over another, as they all represent the causal effect of the treatment for the target population. The real difference lies in the interpretation (as in, we need to use different words to explain what they actually mean).
+
+### (g)
+
+| $Y$ | $X$ | $Z$ | probability |
+|-----|-----|-----|---------|
+|  1  |  1  |  1  |   5/18  |
+|  0  |  1  |  1  |   1/18  |
+|  1  |  0  |  1  |   1/12  |
+|  0  |  0  |  1  |   1/12  |
+|  1  |  1  |  0  |   1/12  |
+|  0  |  1  |  0  |   1/12  |
+|  1  |  0  |  0  |   1/18  |
+|  0  |  0  |  0  |   5/18  |
+
+
+$$
+\begin{aligned}
+\mathbb{E}(Y \mid Z=1, X=1) &= 5/6;\\
+\mathbb{E}(Y \mid Z=0, X=1) &= 1/2;\\
+\mathbb{E}(Y \mid Z=1, X=0) &= 1/2;\\
+\mathbb{E}(Y \mid Z=0, X=0) &= 1/6.
+\end{aligned}
+$$
+
+For $X=1$:
+
+- conditional causal risk difference: $5/6-1/2 = 1/3$.
+- conditional causal risk ratio: $\frac{5/6}{1/2} = 5/3$.
+- conditional causal odds ratio: $\frac{(5/6)/(1/6)}{(1/2)/(1/2)} = 5$.
+
+For $X=0$:
+
+- conditional causal risk difference: $1/2-1/6 = 1/3$.
+- conditional causal risk ratio: $\frac{1/2}{1/6} = 3$.
+- conditional causal odds ratio: $\frac{(1/2)/(1/2)}{(1/6)/(5/6)} = 5$.
+
+There is an interaction between $Z$ and $X$ since the (conditional) causal effect seems to differ between the $X=0$ stratum and the $X=1$ stratum.
+
+## Question 4
+
+
+## Question 5
+```{r}
+# load the data
+BHdat = read_csv("BHdata.csv")
+```
+
+### (a)
+The DiD estimate is
+```{r}
+Diffs = BHdat %>% group_by(G) %>%
+  summarise(mean_diff = mean(Yafter) - mean(Ybefore))
+Diffs$mean_diff[Diffs$G == 1] - Diffs$mean_diff[Diffs$G == 0]
+```
+
+<!-- Here I estimate the standard error via bootstrap: -->
+<!-- ```{r, cache = TRUE} -->
+<!-- set.seed(42) -->
+<!-- S = 1000 -->
+<!-- boot = sapply(1:S, function(x) { -->
+<!--   Diffs = BHdat %>% slice(sample(1:n(), replace = TRUE)) %>% -->
+<!--     group_by(G) %>% -->
+<!--   summarise(mean_diff = mean(Yafter) - mean(Ybefore)) -->
+<!--   Diffs$mean_diff[Diffs$G == 1] - Diffs$mean_diff[Diffs$G == 0] -->
+<!-- }) -->
+<!-- sd(boot) -->
+<!-- ``` -->
+
+Here the variance is estimated through the robust variance formula (**not** assuming homoscedasticity):
+$$
+\mathbb{V}(\hat\tau_{DID}) = \frac{\hat\sigma^2_{00}}{N_{00}} + \frac{\hat\sigma^2_{01}}{N_{01}} + \frac{\sigma^2_{10}}{N_{10}} +\frac{\sigma^2_{11}}{N_{11}}.
+$$
+Thus the estimated standard error (square root of variance) is
+```{r}
+BHdat %>% group_by(G) %>%
+  summarise(N = n(), B = var(Ybefore), A = var(Yafter)) %>%
+  mutate(B = B/N, A = A/N) %>%
+  select(B, A) %>%
+  sum() %>%
+  sqrt()
+```
+
+Therefore the DiD estimate of the causal effect is `7.144`, with a standard error of `1.727`.
+
+The necessary causal assumptions include:
+
+1. Randomization. That is, there is no confounder.
+2. Parallel trends. That is, the treatment and control groups experience the same trend without the treatment. 
+3. SUTVA.
+
+### (b)
+
+Fit a linear model of $Y_{t+1}$ on $Y_{t}$ and $G$ and check out the fitted model. 
+```{r}
+LDV.mod = lm(Yafter ~ Ybefore + as.factor(G), data=BHdat)
+summary(LDV.mod)
+```
+
+We can see that the estimated causal effect is (the coefficient for `G`) `7.121`, with a standard error of `0.749`. 
+
+Necessary assumptions include:
+
+1. Ignorability conditioned on the LDV; that is,
+$$
+Y_{i,t+1}(0) \perp G \mid Y_{i,t}, \quad \text{ for each unit } i.
+$$
+2. SUTVA
+
+### (c)
+
+The results from these two methods are similar. 
+
+DID and LDV estimates would be identical if the linear coefficient $\beta$ for $Y_t$ in the LDV model is $1$. And in fact, in the estimated linear model in (b), $\hat\beta = 0.997$, which is very close to 1. So it's not surprising at all that these two methods above produce very similar results in this case. 
+
+We can also see from the graph below ($Y_{t+1}$ vs $Y_{t}$ in the control group) that $Y_{t+1}$ and $Y_{t}$ clearly have a linear relationship (and the slope is also close to $1$).
+```{r}
+ggplot(data=(BHdat %>% filter(G==0)), aes(x=Ybefore, y=Yafter)) +
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(x='Y_t', y='Y_t+1', 
+title = 'In control group, Y_t and Y_t+1 have a linear relationship')
+```
+
+## Question 6
+```{r}
+FDR = read_csv('FRD.csv')
+```
+
+
+
+## Question 7
+
+The lecture(s) on instrument variables (as well as noncompliance and principal stratification) are great! I never thought of econometric approaches (like 2SLS) from a causal inference perspective, so it was quite enlightening to see some of the connections there. 
+
+(This may sound rebellious but…) It would be great to have a survey lecture on Pearl’s causal framework, particularly since we are a Bayesian department and people do have some basic understanding of graphical models; just a brief introduction like the one on machine learning methods would do - it seems that these days a lot of CS people are using Pearl’s framework. 
